@@ -35,7 +35,7 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
   const [currentRadius, setCurrentRadius] = useState(5000) // Start with 5km
   const [searchStatus, setSearchStatus] = useState("Searching nearby hospitals...")
 
-  const radiusSteps = [5000, 10000, 15000, 20000] // 5km, 10km, 15km, 20km in meters
+  const radiusSteps = [5000, 10000, 15000, 50000] // 5km, 10km, 15km, 20km in meters
 
   const fetchHospitalsWithRadius = async (lat: number, lng: number, radius: number) => {
     console.log("[v0] Fetching hospitals with radius:", radius)
