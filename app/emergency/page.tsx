@@ -629,18 +629,39 @@ export default function EmergencyPage() {
 
     for (let i = 0; i < 20; i++) {
       const facilityTemplate = facilityTypes[i % facilityTypes.length]
-      const offsetLat = (Math.random() - 0.5) * 0.2 // ~11km radius
-      const offsetLng = (Math.random() - 0.5) * 0.2
+      // Create a more realistic distribution: 3-4 hospitals within 5km, rest spread up to 15km
+      let distance: number
+      let offsetLat: number
+      let offsetLng: number
+      
+      if (i < 4) {
+        // First 4 facilities: within 2-5km
+        distance = Math.random() * 3 + 2 // 2-5km
+      } else if (i < 10) {
+        // Next 6 facilities: within 5-10km
+        distance = Math.random() * 5 + 5 // 5-10km
+      } else {
+        // Remaining facilities: 10-20km
+        distance = Math.random() * 10 + 10 // 10-20km
+      }
+      
+      // Convert distance to lat/lng offset
+      const angle = Math.random() * Math.PI * 2
+      const latOffset = (distance / 111) * Math.cos(angle) // 1 degree latitude ≈ 111km
+      const lngOffset = (distance / (111 * Math.cos((location.lat * Math.PI) / 180))) * Math.sin(angle)
+      
+      offsetLat = latOffset
+      offsetLng = lngOffset
       const facilityLat = location.lat + offsetLat
       const facilityLng = location.lng + offsetLng
-      const distance = calculateDistance(location.lat, location.lng, facilityLat, facilityLng)
+      const calculatedDistance = calculateDistance(location.lat, location.lng, facilityLat, facilityLng)
 
       facilities.push({
         id: `mock_${i}`,
         name: `${location.city || "City"} ${facilityTemplate.nameTemplate} ${i > 7 ? Math.floor(i / 8) + 1 : ""}`.trim(),
         type: facilityTemplate.type,
-        distance: Math.round(distance * 10) / 10,
-        eta: Math.max(5, Math.round(distance * 2.5)),
+        distance: Math.round(calculatedDistance * 10) / 10,
+        eta: Math.max(5, Math.round(calculatedDistance * 2.5)),
         hasAmbulance: facilityTemplate.hasAmbulance,
         score: Math.floor(Math.random() * 20) + 80,
         address: `${Math.floor(Math.random() * 9999)} ${location.city || "Medical"} Drive, ${location.state || "State"}`,
@@ -653,7 +674,17 @@ export default function EmergencyPage() {
     }
 
     // Sort by distance (closest first)
-    return facilities.sort((a, b) => a.distance - b.distance)
+    const sortedFacilities = facilities.sort((a, b) => a.distance - b.distance)
+    
+    // Debug logging for mock facilities
+    console.log("[v0] Generated mock facilities:")
+    sortedFacilities.forEach((f, i) => {
+      console.log(`  ${i + 1}. ${f.name}: ${f.distance}km (${f.hasAmbulance ? 'Ambulance' : 'No Ambulance'})`)
+    })
+    const within5km = sortedFacilities.filter(f => f.distance <= 5)
+    console.log(`[v0] Mock facilities within 5km: ${within5km.length}/${sortedFacilities.length}`)
+    
+    return sortedFacilities
   }
 
   // Calculate distance between two coordinates using Haversine formula
@@ -679,7 +710,12 @@ export default function EmergencyPage() {
   // Watch for location changes and fetch facilities
   useEffect(() => {
     if (userLocation) {
-      console.log("[v0] User location received, fetching nearby medical facilities:", userLocation)
+      console.log("[v0] ===== LOCATION ACQUIRED =====")
+      console.log("[v0] Location:", userLocation)
+      console.log("[v0] Accuracy:", userLocation.accuracy)
+      console.log("[v0] Coordinates:", `${userLocation.lat}, ${userLocation.lng}`)
+      console.log("[v0] City:", userLocation.city || "Unknown")
+      console.log("[v0] Fetching nearby medical facilities...")
       fetchNearbyMedicalFacilities(userLocation)
     }
   }, [userLocation])
