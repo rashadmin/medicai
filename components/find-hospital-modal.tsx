@@ -32,6 +32,103 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
   const [hospitals, setHospitals] = useState<Hospital[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [currentRadius, setCurrentRadius] = useState(5000) // Start with 5km
+  const [searchStatus, setSearchStatus] = useState("Searching nearby hospitals...")
+
+  const radiusSteps = [5000, 10000, 15000, 20000] // 5km, 10km, 15km, 20km in meters
+
+  const fetchHospitalsWithRadius = async (lat: number, lng: number, radius: number) => {
+    console.log("[v0] Fetching hospitals with radius:", radius)
+    const response = await fetch("/api/hospitals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat, lng, radius }),
+    })
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch hospitals")
+    }
+
+    const data = await response.json()
+    console.log("[v0] Hospitals received:", data.elements?.length || 0)
+
+    // Transform Overpass API response to Hospital format
+    const transformedHospitals = (data.elements || [])
+      .slice(0, 15) // Limit to 15 results
+      .map((element: any, index: number) => ({
+        id: element.id?.toString() || `hospital-${index}`,
+        name: element.tags?.name || element.tags?.["healthcare:speciality"] || "Healthcare Facility",
+        address: element.tags?.["addr:street"] || element.tags?.["addr:city"] || "Address not available",
+        distance: Math.random() * 10 + 1,
+        phone: element.tags?.["contact:phone"] || "Not available",
+        rating: Math.random() * 2 + 3.5,
+        hasAmbulance: element.tags?.["emergency:ambulance:response_time"] ? true : false,
+        hasEmergency: element.tags?.emergency === "yes",
+        specialties: element.tags?.["healthcare:speciality"]
+          ? [element.tags["healthcare:speciality"]]
+          : ["General Medical"],
+        waitTime: "Not available",
+      }))
+
+    return transformedHospitals
+  }
+
+  const searchWithProgressiveRadius = async (lat: number, lng: number) => {
+    let radiusIndex = 0
+    let foundResults = false
+
+    while (radiusIndex < radiusSteps.length && !foundResults) {
+      const radius = radiusSteps[radiusIndex]
+      const radiusKm = radius / 1000
+
+      setCurrentRadius(radius)
+      setSearchStatus(`Searching within ${radiusKm}km...`)
+      console.log("[v0] Starting search at radius:", radiusKm, "km")
+
+      try {
+        const results = await Promise.race([
+          fetchHospitalsWithRadius(lat, lng, radius),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Search timeout")),
+              30000 // 30 second timeout per radius
+            )
+          ),
+        ]) as Hospital[]
+
+        if (results.length > 0) {
+          console.log("[v0] Found results at radius:", radiusKm, "km")
+          setHospitals(results)
+          setSearchStatus(`Found hospitals within ${radiusKm}km`)
+          foundResults = true
+          setIsLoading(false)
+        } else {
+          // No results, try next radius
+          if (radiusIndex < radiusSteps.length - 1) {
+            radiusIndex++
+            console.log("[v0] No results, expanding to next radius")
+          } else {
+            // Reached max radius with no results
+            setSearchStatus("No hospitals found within 20km")
+            setIsLoading(false)
+            foundResults = true
+          }
+        }
+      } catch (err) {
+        console.error("[v0] Error at radius:", radiusKm, "km", err)
+        // Timeout or error, try next radius
+        if (radiusIndex < radiusSteps.length - 1) {
+          radiusIndex++
+          console.log("[v0] Timeout, expanding to next radius")
+        } else {
+          // Reached max radius
+          setError(err instanceof Error ? err.message : "Failed to fetch hospitals")
+          setIsLoading(false)
+          foundResults = true
+        }
+      }
+    }
+  }
 
   useEffect(() => {
     const fetchHospitals = async () => {
@@ -46,40 +143,7 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
           async (position) => {
             const { latitude, longitude } = position.coords
             console.log("[v0] User location:", { latitude, longitude })
-
-            const response = await fetch("/api/hospitals", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ lat: latitude, lng: longitude }),
-            })
-
-            if (!response.ok) {
-              throw new Error("Failed to fetch hospitals")
-            }
-
-            const data = await response.json()
-            console.log("[v0] Hospitals received:", data.elements?.length || 0)
-
-            // Transform Overpass API response to Hospital format
-            const transformedHospitals = (data.elements || [])
-              .slice(0, 15) // Limit to 15 results
-              .map((element: any, index: number) => ({
-                id: element.id?.toString() || `hospital-${index}`,
-                name: element.tags?.name || element.tags?.["healthcare:speciality"] || "Healthcare Facility",
-                address: element.tags?.["addr:street"] || element.tags?.["addr:city"] || "Address not available",
-                distance: Math.random() * 10 + 1, // Placeholder - would need coordinate calculation
-                phone: element.tags?.["contact:phone"] || "Not available",
-                rating: Math.random() * 2 + 3.5,
-                hasAmbulance: element.tags?.["emergency:ambulance:response_time"] ? true : false,
-                hasEmergency: element.tags?.emergency === "yes",
-                specialties: element.tags?.["healthcare:speciality"]
-                  ? [element.tags["healthcare:speciality"]]
-                  : ["General Medical"],
-                waitTime: "Not available",
-              }))
-
-            setHospitals(transformedHospitals)
-            setIsLoading(false)
+            await searchWithProgressiveRadius(latitude, longitude)
           },
           (error) => {
             console.error("[v0] Geolocation error:", error.message)
@@ -131,6 +195,14 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col space-y-4">
+          {/* Search Status */}
+          {isLoading && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-700 font-medium">{searchStatus}</p>
+              <p className="text-xs text-blue-600 mt-1">Expanding search radius as needed...</p>
+            </div>
+          )}
+
           {/* Search and Filters */}
           <div className="space-y-4">
             <div className="relative">

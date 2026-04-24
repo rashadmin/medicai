@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { lat, lng } = await request.json();
+    const { lat, lng, radius = 5000 } = await request.json();
 
     if (!lat || !lng) {
       return NextResponse.json(
@@ -11,33 +11,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[v0] Fetching hospitals from backend for:', { lat, lng });
+    console.log('[v0] Fetching hospitals with radius:', { lat, lng, radius });
 
     const overpassQuery = `
       [out:json][timeout:25];
       (
-        node["amenity"="hospital"](around:25000,${lat},${lng});
-        way["amenity"="hospital"](around:25000,${lat},${lng});
-        relation["amenity"="hospital"](around:25000,${lat},${lng});
-        node["amenity"="clinic"](around:25000,${lat},${lng});
-        way["amenity"="clinic"](around:25000,${lat},${lng});
-        relation["amenity"="clinic"](around:25000,${lat},${lng});
-        node["amenity"="pharmacy"](around:25000,${lat},${lng});
-        way["amenity"="pharmacy"](around:25000,${lat},${lng});
-        node["healthcare"="hospital"](around:25000,${lat},${lng});
-        way["healthcare"="hospital"](around:25000,${lat},${lng});
-        node["healthcare"="clinic"](around:25000,${lat},${lng});
-        way["healthcare"="clinic"](around:25000,${lat},${lng});
-        node["healthcare"="centre"](around:25000,${lat},${lng});
-        way["healthcare"="centre"](around:25000,${lat},${lng});
-        node["healthcare"="laboratory"](around:25000,${lat},${lng});
-        way["healthcare"="laboratory"](around:25000,${lat},${lng});
-        node["healthcare"="diagnostic_centre"](around:25000,${lat},${lng});
-        way["healthcare"="diagnostic_centre"](around:25000,${lat},${lng});
-        node["emergency"="yes"](around:25000,${lat},${lng});
-        way["emergency"="yes"](around:25000,${lat},${lng});
-        node["healthcare:speciality"](around:25000,${lat},${lng});
-        way["healthcare:speciality"](around:25000,${lat},${lng});
+        node["amenity"="hospital"](around:${radius},${lat},${lng});
+        way["amenity"="hospital"](around:${radius},${lat},${lng});
+        relation["amenity"="hospital"](around:${radius},${lat},${lng});
+        node["amenity"="clinic"](around:${radius},${lat},${lng});
+        way["amenity"="clinic"](around:${radius},${lat},${lng});
+        relation["amenity"="clinic"](around:${radius},${lat},${lng});
+        node["amenity"="pharmacy"](around:${radius},${lat},${lng});
+        way["amenity"="pharmacy"](around:${radius},${lat},${lng});
+        node["healthcare"="hospital"](around:${radius},${lat},${lng});
+        way["healthcare"="hospital"](around:${radius},${lat},${lng});
+        node["healthcare"="clinic"](around:${radius},${lat},${lng});
+        way["healthcare"="clinic"](around:${radius},${lat},${lng});
+        node["healthcare"="centre"](around:${radius},${lat},${lng});
+        way["healthcare"="centre"](around:${radius},${lat},${lng});
+        node["healthcare"="laboratory"](around:${radius},${lat},${lng});
+        way["healthcare"="laboratory"](around:${radius},${lat},${lng});
+        node["healthcare"="diagnostic_centre"](around:${radius},${lat},${lng});
+        way["healthcare"="diagnostic_centre"](around:${radius},${lat},${lng});
+        node["emergency"="yes"](around:${radius},${lat},${lng});
+        way["emergency"="yes"](around:${radius},${lat},${lng});
+        node["healthcare:speciality"](around:${radius},${lat},${lng});
+        way["healthcare:speciality"](around:${radius},${lat},${lng});
       );
       out center meta;
     `;
