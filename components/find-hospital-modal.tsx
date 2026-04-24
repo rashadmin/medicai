@@ -86,42 +86,43 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
       console.log("[v0] Starting search at radius:", radiusKm, "km")
 
       try {
-        const results = await Promise.race([
-          fetchHospitalsWithRadius(lat, lng, radius),
-          new Promise((_, reject) =>
-            setTimeout(
-              () => reject(new Error("Search timeout")),
-              30000 // 30 second timeout per radius
-            )
-          ),
-        ]) as Hospital[]
+        const results = await fetchHospitalsWithRadius(lat, lng, radius)
+        console.log("[v0] Results returned:", results.length)
 
-        if (results.length > 0) {
+        if (results && results.length > 0) {
           console.log("[v0] Found results at radius:", radiusKm, "km")
           setHospitals(results)
           setSearchStatus(`Found hospitals within ${radiusKm}km`)
           foundResults = true
           setIsLoading(false)
         } else {
+          console.log("[v0] No results at radius:", radiusKm, "km, expanding...")
           // No results, try next radius
           if (radiusIndex < radiusSteps.length - 1) {
             radiusIndex++
-            console.log("[v0] No results, expanding to next radius")
+            console.log("[v0] Moving to next radius index:", radiusIndex)
+            // Small delay before next search
+            await new Promise(resolve => setTimeout(resolve, 1000))
           } else {
             // Reached max radius with no results
+            console.log("[v0] Reached max radius with no results")
             setSearchStatus("No hospitals found within 20km")
+            setHospitals([])
             setIsLoading(false)
             foundResults = true
           }
         }
       } catch (err) {
         console.error("[v0] Error at radius:", radiusKm, "km", err)
-        // Timeout or error, try next radius
+        // Error occurred, try next radius
         if (radiusIndex < radiusSteps.length - 1) {
           radiusIndex++
-          console.log("[v0] Timeout, expanding to next radius")
+          console.log("[v0] Error occurred, expanding to next radius, index:", radiusIndex)
+          // Small delay before next search
+          await new Promise(resolve => setTimeout(resolve, 1000))
         } else {
           // Reached max radius
+          console.log("[v0] Error at max radius")
           setError(err instanceof Error ? err.message : "Failed to fetch hospitals")
           setIsLoading(false)
           foundResults = true
