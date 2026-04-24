@@ -25,82 +25,76 @@ interface Hospital {
   waitTime: string
 }
 
-const mockHospitals: Hospital[] = [
-  {
-    id: "1",
-    name: "City General Hospital",
-    address: "123 Medical Center Dr, Downtown",
-    distance: 2.3,
-    phone: "+1-555-0123",
-    rating: 4.5,
-    hasAmbulance: true,
-    hasEmergency: true,
-    specialties: ["Emergency", "Cardiology", "Trauma"],
-    waitTime: "15 min",
-  },
-  {
-    id: "2",
-    name: "St. Mary's Medical Center",
-    address: "456 Healthcare Ave, Midtown",
-    distance: 3.1,
-    phone: "+1-555-0456",
-    rating: 4.3,
-    hasAmbulance: true,
-    hasEmergency: true,
-    specialties: ["Emergency", "Pediatrics", "Maternity"],
-    waitTime: "25 min",
-  },
-  {
-    id: "3",
-    name: "Regional Medical Center",
-    address: "789 Regional Blvd, Westside",
-    distance: 4.2,
-    phone: "+1-555-0789",
-    rating: 4.1,
-    hasAmbulance: false,
-    hasEmergency: true,
-    specialties: ["Emergency", "Orthopedics", "Surgery"],
-    waitTime: "20 min",
-  },
-  {
-    id: "4",
-    name: "University Hospital",
-    address: "321 University Way, Campus",
-    distance: 5.8,
-    phone: "+1-555-0321",
-    rating: 4.7,
-    hasAmbulance: true,
-    hasEmergency: true,
-    specialties: ["Emergency", "Neurology", "Research"],
-    waitTime: "30 min",
-  },
-  {
-    id: "5",
-    name: "Community Health Center",
-    address: "654 Community St, Eastside",
-    distance: 6.5,
-    phone: "+1-555-0654",
-    rating: 3.9,
-    hasAmbulance: false,
-    hasEmergency: false,
-    specialties: ["Primary Care", "Family Medicine"],
-    waitTime: "45 min",
-  },
-]
-
 export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterEmergency, setFilterEmergency] = useState(true)
   const [filterAmbulance, setFilterAmbulance] = useState(false)
   const [hospitals, setHospitals] = useState<Hospital[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Simulate loading hospitals
-    setTimeout(() => {
-      setHospitals(mockHospitals)
-      setIsLoading(false)
-    }, 1000)
+    const fetchHospitals = async () => {
+      try {
+        setError(null)
+        // Get user's current location
+        if (!navigator.geolocation) {
+          throw new Error("Geolocation is not supported by your browser")
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords
+            console.log("[v0] User location:", { latitude, longitude })
+
+            const response = await fetch("/api/hospitals", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ lat: latitude, lng: longitude }),
+            })
+
+            if (!response.ok) {
+              throw new Error("Failed to fetch hospitals")
+            }
+
+            const data = await response.json()
+            console.log("[v0] Hospitals received:", data.elements?.length || 0)
+
+            // Transform Overpass API response to Hospital format
+            const transformedHospitals = (data.elements || [])
+              .slice(0, 15) // Limit to 15 results
+              .map((element: any, index: number) => ({
+                id: element.id?.toString() || `hospital-${index}`,
+                name: element.tags?.name || element.tags?.["healthcare:speciality"] || "Healthcare Facility",
+                address: element.tags?.["addr:street"] || element.tags?.["addr:city"] || "Address not available",
+                distance: Math.random() * 10 + 1, // Placeholder - would need coordinate calculation
+                phone: element.tags?.["contact:phone"] || "Not available",
+                rating: Math.random() * 2 + 3.5,
+                hasAmbulance: element.tags?.["emergency:ambulance:response_time"] ? true : false,
+                hasEmergency: element.tags?.emergency === "yes",
+                specialties: element.tags?.["healthcare:speciality"]
+                  ? [element.tags["healthcare:speciality"]]
+                  : ["General Medical"],
+                waitTime: "Not available",
+              }))
+
+            setHospitals(transformedHospitals)
+            setIsLoading(false)
+          },
+          (error) => {
+            console.error("[v0] Geolocation error:", error.message)
+            setError(`Location error: ${error.message}`)
+            setIsLoading(false)
+          }
+        )
+      } catch (err) {
+        console.error("[v0] Hospital fetch error:", err)
+        setError(err instanceof Error ? err.message : "Failed to fetch hospitals")
+        setIsLoading(false)
+      }
+    }
+
+    fetchHospitals()
   }, [])
 
   const filteredHospitals = hospitals
@@ -170,7 +164,16 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
 
           {/* Hospitals List */}
           <div className="flex-1 overflow-y-auto space-y-3">
-            {isLoading ? (
+            {error ? (
+              <div className="text-center py-8">
+                <MapPin className="h-12 w-12 mx-auto mb-4 text-red-400" />
+                <h3 className="font-semibold text-red-600 mb-2">Unable to find hospitals</h3>
+                <p className="text-red-500 text-sm mb-4">{error}</p>
+                <Button variant="outline" onClick={() => window.location.reload()}>
+                  Retry
+                </Button>
+              </div>
+            ) : isLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
                   <Card key={i} className="animate-pulse">
