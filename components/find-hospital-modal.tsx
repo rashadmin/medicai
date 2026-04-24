@@ -42,7 +42,7 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
     const response = await fetch("/api/hospitals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lat, lng, radius }),
+      body: JSON.stringify({ 7.1784, 4.6976, radius }),
     })
 
     if (!response.ok) {
@@ -86,7 +86,7 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
       console.log("[v0] Starting search at radius:", radiusKm, "km")
 
       try {
-        const results = await fetchHospitalsWithRadius(7.1784, 4.6976, radius)
+        const results = await fetchHospitalsWithRadius(lat, lng, radius)
         console.log("[v0] Results returned:", results.length)
 
         if (results && results.length > 0) {
