@@ -378,174 +378,198 @@ export default function EmergencyPage() {
     }
   }
 
-  // Fetch nearby medical facilities based on user location
+  // Process facility data from API response
+  const processFacilityData = (data: any, location: LocationInfo) => {
+    return data.elements
+      .filter((element: any) => {
+        return (
+          element.tags &&
+          (element.tags.name || element.tags["name:en"] || element.tags.operator || element.tags.brand) &&
+          (element.lat || element.center?.lat)
+        )
+      })
+      .map((element: any, index: number) => {
+        const lat = element.lat || element.center?.lat || location.lat
+        const lng = element.lon || element.center?.lon || location.lng
+        const distance = calculateDistance(location.lat, location.lng, lat, lng)
+        const eta = Math.round(distance * 2.5)
+
+        let facilityType: MedicalFacility["type"] = "medical_center"
+        if (element.tags.amenity === "hospital" || element.tags.healthcare === "hospital") {
+          facilityType = "hospital"
+        } else if (element.tags.amenity === "clinic" || element.tags.healthcare === "clinic") {
+          facilityType = "clinic"
+        } else if (element.tags.amenity === "pharmacy") {
+          facilityType = "pharmacy"
+        } else if (element.tags.healthcare === "laboratory") {
+          facilityType = "laboratory"
+        } else if (element.tags.healthcare === "diagnostic_centre") {
+          facilityType = "diagnostic_center"
+        } else if (element.tags.emergency === "yes") {
+          facilityType = "emergency_room"
+        } else if (element.tags.healthcare === "centre") {
+          facilityType = "medical_center"
+        } else if (element.tags["healthcare:speciality"]) {
+          facilityType = "clinic"
+        }
+
+        const services = []
+        if (element.tags.emergency === "yes") services.push("Emergency Care")
+        if (element.tags["healthcare:speciality"]) {
+          const specialities = element.tags["healthcare:speciality"].split(";")
+          services.push(...specialities.slice(0, 2))
+        }
+        if (facilityType === "hospital") services.push("Inpatient Care", "Surgery")
+        if (facilityType === "clinic") services.push("Outpatient Care")
+        if (facilityType === "pharmacy") services.push("Prescription Drugs", "Medical Supplies")
+        if (facilityType === "laboratory") services.push("Lab Tests", "Diagnostics")
+        if (facilityType === "diagnostic_center") services.push("Medical Imaging", "Diagnostics")
+        if (services.length === 0) services.push("General Medical Care")
+
+        let availability: MedicalFacility["availability"] = "limited"
+        if (
+          element.tags.opening_hours === "24/7" ||
+          facilityType === "hospital" ||
+          facilityType === "emergency_room"
+        ) {
+          availability = "24/7"
+        } else if (element.tags.emergency === "yes") {
+          availability = "emergency_only"
+        }
+
+        return {
+          id: element.id?.toString() || `facility_${index}`,
+          name:
+            element.tags.name ||
+            element.tags["name:en"] ||
+            element.tags.operator ||
+            element.tags.brand ||
+            `Medical Facility ${index + 1}`,
+          type: facilityType,
+          distance: Math.round(distance * 10) / 10,
+          eta: Math.max(5, eta),
+          hasAmbulance: facilityType === "hospital" || facilityType === "emergency_room" || Math.random() > 0.7,
+          score: Math.floor(Math.random() * 20) + 80,
+          address:
+            element.tags["addr:full"] ||
+            `${element.tags["addr:housenumber"] || ""} ${element.tags["addr:street"] || ""}`.trim() ||
+            element.tags["addr:city"] ||
+            "Address not available",
+          phone:
+            element.tags.phone || element.tags["contact:phone"] || element.tags.telephone || "Phone not available",
+          lat,
+          lng,
+          services,
+          availability,
+        }
+      })
+      .sort((a: MedicalFacility, b: MedicalFacility) => a.distance - b.distance)
+      .slice(0, 20)
+  }
+
+  // Fetch nearby medical facilities with progressive radius expansion
   const fetchNearbyMedicalFacilities = async (location: LocationInfo) => {
     setIsFetchingHospitals(true)
     setHospitalsError(null)
-    let apiSuccess = false
 
-    try {
-      console.log("[v0] Fetching medical facilities near:", location)
+    const radiusSteps = [5000, 10000, 15000, 20000] // 5km, 10km, 15km, 20km in meters
+    let radiusIndex = 0
+    let foundResults = false
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => {
-        console.log("[v0] Overpass API request timeout, aborting...")
-        controller.abort()
-      }, 15000) // Reduced timeout to 15 seconds
+    while (radiusIndex < radiusSteps.length && !foundResults) {
+      const radius = radiusSteps[radiusIndex]
+      const radiusKm = radius / 1000
+
+      console.log(`[v0] Searching for facilities within ${radiusKm}km...`)
+      setHospitalsError(`Searching for hospitals within ${radiusKm}km...`)
 
       try {
-        console.log("[v0] Calling backend hospital API...")
         const response = await fetch("/api/hospitals", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ lat: location.lat, lng: location.lng }),
-          signal: controller.signal,
+          body: JSON.stringify({ lat: location.lat, lng: location.lng, radius }),
         })
-
-        clearTimeout(timeoutId)
 
         if (!response.ok) {
           throw new Error(`Backend API returned ${response.status}`)
         }
 
         const data = await response.json()
-        console.log("[v0] Hospital API response:", data)
+        console.log(`[v0] API response for ${radiusKm}km radius:`, data.elements?.length || 0)
 
-        const facilityData = data.elements
-          .filter((element: any) => {
-            // Filter out elements without names or coordinates
-            return (
-              element.tags &&
-              (element.tags.name || element.tags["name:en"] || element.tags.operator || element.tags.brand) &&
-              (element.lat || element.center?.lat)
-            )
-          })
-          .map((element: any, index: number) => {
-            const lat = element.lat || element.center?.lat || location.lat
-            const lng = element.lon || element.center?.lon || location.lng
+        if (data.elements && data.elements.length > 0) {
+          const facilityData = processFacilityData(data, location)
 
-            // Calculate distance using Haversine formula
-            const distance = calculateDistance(location.lat, location.lng, lat, lng)
-            const eta = Math.round(distance * 2.5) // Rough estimate: 2.5 min per km
-
-            // Determine facility type
-            let facilityType: MedicalFacility["type"] = "medical_center"
-            if (element.tags.amenity === "hospital" || element.tags.healthcare === "hospital") {
-              facilityType = "hospital"
-            } else if (element.tags.amenity === "clinic" || element.tags.healthcare === "clinic") {
-              facilityType = "clinic"
-            } else if (element.tags.amenity === "pharmacy") {
-              facilityType = "pharmacy"
-            } else if (element.tags.healthcare === "laboratory") {
-              facilityType = "laboratory"
-            } else if (element.tags.healthcare === "diagnostic_centre") {
-              facilityType = "diagnostic_center"
-            } else if (element.tags.emergency === "yes") {
-              facilityType = "emergency_room"
-            } else if (element.tags.healthcare === "centre") {
-              facilityType = "medical_center"
-            } else if (element.tags["healthcare:speciality"]) {
-              facilityType = "clinic"
+          if (facilityData.length > 0) {
+            console.log(`[v0] Found ${facilityData.length} facilities within ${radiusKm}km`)
+            setAllFacilities(facilityData)
+            setMedicalFacilities(facilityData)
+            setHospitalsError(null)
+            foundResults = true
+            setIsFetchingHospitals(false)
+          } else {
+            // No valid facilities, try next radius
+            if (radiusIndex < radiusSteps.length - 1) {
+              radiusIndex++
+              console.log(`[v0] No valid facilities at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
+              await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
+            } else {
+              // Max radius reached
+              setAllFacilities([])
+              setMedicalFacilities([])
+              setHospitalsError("No hospitals found within 20km. Please check the location or try again.")
+              setIsFetchingHospitals(false)
+              foundResults = true
             }
-
-            // Determine services
-            const services = []
-            if (element.tags.emergency === "yes") services.push("Emergency Care")
-            if (element.tags["healthcare:speciality"]) {
-              const specialities = element.tags["healthcare:speciality"].split(";")
-              services.push(...specialities.slice(0, 2))
-            }
-            if (facilityType === "hospital") services.push("Inpatient Care", "Surgery")
-            if (facilityType === "clinic") services.push("Outpatient Care")
-            if (facilityType === "pharmacy") services.push("Prescription Drugs", "Medical Supplies")
-            if (facilityType === "laboratory") services.push("Lab Tests", "Diagnostics")
-            if (facilityType === "diagnostic_center") services.push("Medical Imaging", "Diagnostics")
-            if (services.length === 0) services.push("General Medical Care")
-
-            // Determine availability
-            let availability: MedicalFacility["availability"] = "limited"
-            if (
-              element.tags.opening_hours === "24/7" ||
-              facilityType === "hospital" ||
-              facilityType === "emergency_room"
-            ) {
-              availability = "24/7"
-            } else if (element.tags.emergency === "yes") {
-              availability = "emergency_only"
-            }
-
-            return {
-              id: element.id?.toString() || `facility_${index}`,
-              name:
-                element.tags.name ||
-                element.tags["name:en"] ||
-                element.tags.operator ||
-                element.tags.brand ||
-                `Medical Facility ${index + 1}`,
-              type: facilityType,
-              distance: Math.round(distance * 10) / 10,
-              eta: Math.max(5, eta),
-              hasAmbulance: facilityType === "hospital" || facilityType === "emergency_room" || Math.random() > 0.7,
-              score: Math.floor(Math.random() * 20) + 80,
-              address:
-                element.tags["addr:full"] ||
-                `${element.tags["addr:housenumber"] || ""} ${element.tags["addr:street"] || ""}`.trim() ||
-                element.tags["addr:city"] ||
-                "Address not available",
-              phone:
-                element.tags.phone || element.tags["contact:phone"] || element.tags.telephone || "Phone not available",
-              lat,
-              lng,
-              services,
-              availability,
-            }
-          })
-          .sort((a: MedicalFacility, b: MedicalFacility) => {
-            // Sort by distance first (closest first)
-            return a.distance - b.distance
-          })
-          .slice(0, 20) // Get top 20 closest facilities
-
-        console.log("[v0] Processed facilities:", facilityData)
-
-        if (facilityData.length > 0) {
-          console.log("[v0] Found real facilities from API:", facilityData.length)
-          apiSuccess = true
-          // Store all facilities for consistency
-          setAllFacilities(facilityData)
-          // Set the displayed facilities (will be filtered in HospitalSelection)
-          setMedicalFacilities(facilityData)
+          }
         } else {
-          console.log("[v0] No hospitals found near this location")
-          setAllFacilities([])
-          setMedicalFacilities([])
-          setHospitalsError("No hospitals found within the search radius. Please check the location or try again.")
+          // No results, try next radius
+          if (radiusIndex < radiusSteps.length - 1) {
+            radiusIndex++
+            console.log(`[v0] No results at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
+            await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
+          } else {
+            // Max radius reached
+            setAllFacilities([])
+            setMedicalFacilities([])
+            setHospitalsError("No hospitals found within 20km. Please check the location or try again.")
+            setIsFetchingHospitals(false)
+            foundResults = true
+          }
         }
       } catch (fetchError: any) {
-        clearTimeout(timeoutId)
+        console.error(`[v0] Error fetching at ${radiusKm}km radius:`, fetchError)
 
-        let errorMsg = "Unable to fetch hospital data"
-        if (fetchError.name === "AbortError") {
-          console.log("[v0] Overpass API request was aborted due to timeout")
-          errorMsg = "Hospital search took too long to respond. Please try again."
+        // Try next radius on error
+        if (radiusIndex < radiusSteps.length - 1) {
+          radiusIndex++
+          console.log(`[v0] Error at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
+          await new Promise(resolve => setTimeout(resolve, 1000))
         } else {
-          console.warn("[v0] Hospital API fetch failed:", fetchError.message)
-        }
+          // Max radius reached
+          let errorMsg = "Unable to fetch hospital data"
+          if (fetchError.name === "AbortError") {
+            console.log("[v0] Overpass API request was aborted due to timeout")
+            errorMsg = "Hospital search took too long to respond. Please try again."
+          } else {
+            console.warn("[v0] Hospital API fetch failed:", fetchError.message)
+          }
 
-        setHospitalsError(errorMsg)
-        setAllFacilities([])
-        setMedicalFacilities([])
+          setHospitalsError(errorMsg)
+          setAllFacilities([])
+          setMedicalFacilities([])
+          setIsFetchingHospitals(false)
+          foundResults = true
+        }
       }
     } catch (error) {
       console.error("[v0] Error in fetchNearbyMedicalFacilities:", error)
       setHospitalsError("Unable to locate hospitals. Please check your location and try again.")
       setAllFacilities([])
       setMedicalFacilities([])
-    }
-
-    setIsFetchingHospitals(false)
+      setIsFetchingHospitals(false)
   }
 
 
