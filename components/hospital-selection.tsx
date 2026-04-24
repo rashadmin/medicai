@@ -190,8 +190,10 @@ export function HospitalSelection({
     })
   }, [hospitals])
 
-  const ambulanceHospitals = hospitals.filter((h) => h.hasAmbulance)
-  const selfDriveHospitals = hospitals
+  // Filter hospitals within 5km radius
+  const hospitalsWithin5km = hospitals.filter((h) => h.distance <= 5)
+  const ambulanceHospitals = hospitalsWithin5km.filter((h) => h.hasAmbulance)
+  const selfDriveHospitals = hospitalsWithin5km
 
   const renderHospitalCard = (hospital: MedicalFacility) => (
     <Card
@@ -320,6 +322,14 @@ export function HospitalSelection({
       )}
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
+        <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <MapPin className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-medium text-blue-900">
+              Showing hospitals within 5km of incident location
+            </span>
+          </div>
+        </div>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="ambulance" className="flex items-center space-x-2">
             <Ambulance className="h-4 w-4" />
@@ -356,7 +366,7 @@ export function HospitalSelection({
             {countdown <= 30 && (
               <div className="mt-2 text-xs text-center text-red-600 font-medium animate-pulse">
                 {countdown <= 10
-                  ? "SELECTING BEST AVAILABLE FACILITY..."
+                  ? "SELECTING BEST AVAILABLE FACILITY WITHIN 5KM..."
                   : "Please make a selection to avoid auto-selection"}
               </div>
             )}
@@ -368,9 +378,9 @@ export function HospitalSelection({
             <Card>
               <CardContent className="p-8 text-center">
                 <Ambulance className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <h3 className="text-lg font-medium mb-2">No Ambulance Services Available</h3>
+                <h3 className="text-lg font-medium mb-2">No Ambulance Services Within 5km</h3>
                 <p className="text-gray-600">
-                  No hospitals with ambulance services were found in your area. Please consider the self-drive option or
+                  No hospitals with ambulance services were found within 5km of the incident location. Please consider the self-drive option or
                   contact emergency services directly.
                 </p>
               </CardContent>
@@ -385,9 +395,9 @@ export function HospitalSelection({
             <Card>
               <CardContent className="p-8 text-center">
                 <MapPin className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <h3 className="text-lg font-medium mb-2">No Medical Facilities Found</h3>
+                <h3 className="text-lg font-medium mb-2">No Medical Facilities Within 5km</h3>
                 <p className="text-gray-600">
-                  No medical facilities were found in your area. Please try expanding your search radius or contact
+                  No medical facilities were found within 5km of the incident location. Please contact
                   emergency services directly.
                 </p>
               </CardContent>
