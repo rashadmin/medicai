@@ -518,174 +518,37 @@ export default function EmergencyPage() {
           // Set the displayed facilities (will be filtered in HospitalSelection)
           setMedicalFacilities(facilityData)
         } else {
-          console.log("[v0] No facilities found from API, using mock data")
-          // Generate mock facilities near user location
-          const mockFacilities = generateMockFacilities(location)
-          console.log("[v0] Generated mock facilities:", mockFacilities.length)
-          setAllFacilities(mockFacilities)
-          setMedicalFacilities(mockFacilities)
-          setHospitalsError("No hospitals found at this location. Showing nearby medical facilities.")
+          console.log("[v0] No hospitals found near this location")
+          setAllFacilities([])
+          setMedicalFacilities([])
+          setHospitalsError("No hospitals found within the search radius. Please check the location or try again.")
         }
       } catch (fetchError: any) {
         clearTimeout(timeoutId)
 
-        let errorMsg = "Unable to fetch real hospital data"
+        let errorMsg = "Unable to fetch hospital data"
         if (fetchError.name === "AbortError") {
           console.log("[v0] Overpass API request was aborted due to timeout")
-          errorMsg = "Location service took too long to respond"
+          errorMsg = "Hospital search took too long to respond. Please try again."
         } else {
-          console.warn("[v0] Overpass API fetch failed:", fetchError.message)
+          console.warn("[v0] Hospital API fetch failed:", fetchError.message)
         }
 
         setHospitalsError(errorMsg)
-
-        // Always fallback to mock data on any fetch error
-        console.log("[v0] Using mock data due to API error")
-        const mockFacilities = generateMockFacilities(location)
-        setAllFacilities(mockFacilities)
-        setMedicalFacilities(mockFacilities)
+        setAllFacilities([])
+        setMedicalFacilities([])
       }
     } catch (error) {
       console.error("[v0] Error in fetchNearbyMedicalFacilities:", error)
-      setHospitalsError("Unable to locate hospitals. Please try again.")
-      // Fallback to mock data with user's location
-      const mockFacilities = generateMockFacilities(location)
-      setAllFacilities(mockFacilities)
-      setMedicalFacilities(mockFacilities)
+      setHospitalsError("Unable to locate hospitals. Please check your location and try again.")
+      setAllFacilities([])
+      setMedicalFacilities([])
     }
 
     setIsFetchingHospitals(false)
   }
 
-  // Generate mock medical facilities near user location
-  const generateMockFacilities = (location: LocationInfo): MedicalFacility[] => {
-    const facilityTypes: Array<{
-      type: MedicalFacility["type"]
-      nameTemplate: string
-      hasAmbulance: boolean
-      availability: MedicalFacility["availability"]
-      services: string[]
-    }> = [
-      {
-        type: "hospital",
-        nameTemplate: "General Hospital",
-        hasAmbulance: true,
-        availability: "24/7",
-        services: ["Emergency Care", "Surgery", "Inpatient Care"],
-      },
-      {
-        type: "emergency_room",
-        nameTemplate: "Emergency Medical Center",
-        hasAmbulance: true,
-        availability: "24/7",
-        services: ["Emergency Care", "Trauma Care", "Critical Care"],
-      },
-      {
-        type: "hospital",
-        nameTemplate: "Regional Medical Center",
-        hasAmbulance: true,
-        availability: "24/7",
-        services: ["Emergency Care", "Surgery", "Cardiology"],
-      },
-      {
-        type: "urgent_care",
-        nameTemplate: "Urgent Care Center",
-        hasAmbulance: false,
-        availability: "limited",
-        services: ["Urgent Care", "Minor Injuries", "Walk-in Care"],
-      },
-      {
-        type: "clinic",
-        nameTemplate: "Family Medical Clinic",
-        hasAmbulance: false,
-        availability: "limited",
-        services: ["Outpatient Care", "General Medicine", "Preventive Care"],
-      },
-      {
-        type: "medical_center",
-        nameTemplate: "Community Health Center",
-        hasAmbulance: false,
-        availability: "limited",
-        services: ["Primary Care", "Specialist Care", "Diagnostics"],
-      },
-      {
-        type: "clinic",
-        nameTemplate: "Walk-in Clinic",
-        hasAmbulance: false,
-        availability: "limited",
-        services: ["Walk-in Care", "Minor Procedures", "Health Screenings"],
-      },
-      {
-        type: "diagnostic_center",
-        nameTemplate: "Diagnostic Imaging Center",
-        hasAmbulance: false,
-        availability: "limited",
-        services: ["Medical Imaging", "X-Ray", "MRI"],
-      },
-    ]
 
-    // Generate 20 facilities to simulate a realistic number
-    const facilities: MedicalFacility[] = []
-
-    for (let i = 0; i < 20; i++) {
-      const facilityTemplate = facilityTypes[i % facilityTypes.length]
-      // Create a more realistic distribution: 3-4 hospitals within 5km, rest spread up to 15km
-      let distance: number
-      let offsetLat: number
-      let offsetLng: number
-      
-      if (i < 4) {
-        // First 4 facilities: within 2-5km
-        distance = Math.random() * 3 + 2 // 2-5km
-      } else if (i < 10) {
-        // Next 6 facilities: within 5-10km
-        distance = Math.random() * 5 + 5 // 5-10km
-      } else {
-        // Remaining facilities: 10-20km
-        distance = Math.random() * 10 + 10 // 10-20km
-      }
-      
-      // Convert distance to lat/lng offset
-      const angle = Math.random() * Math.PI * 2
-      const latOffset = (distance / 111) * Math.cos(angle) // 1 degree latitude ≈ 111km
-      const lngOffset = (distance / (111 * Math.cos((location.lat * Math.PI) / 180))) * Math.sin(angle)
-      
-      offsetLat = latOffset
-      offsetLng = lngOffset
-      const facilityLat = location.lat + offsetLat
-      const facilityLng = location.lng + offsetLng
-      const calculatedDistance = calculateDistance(location.lat, location.lng, facilityLat, facilityLng)
-
-      facilities.push({
-        id: `mock_${i}`,
-        name: `${location.city || "City"} ${facilityTemplate.nameTemplate} ${i > 7 ? Math.floor(i / 8) + 1 : ""}`.trim(),
-        type: facilityTemplate.type,
-        distance: Math.round(calculatedDistance * 10) / 10,
-        eta: Math.max(5, Math.round(calculatedDistance * 2.5)),
-        hasAmbulance: facilityTemplate.hasAmbulance,
-        score: Math.floor(Math.random() * 20) + 80,
-        address: `${Math.floor(Math.random() * 9999)} ${location.city || "Medical"} Drive, ${location.state || "State"}`,
-        phone: `+1-555-${String(Math.floor(Math.random() * 10000)).padStart(4, "0")}`,
-        lat: facilityLat,
-        lng: facilityLng,
-        services: facilityTemplate.services,
-        availability: facilityTemplate.availability,
-      })
-    }
-
-    // Sort by distance (closest first)
-    const sortedFacilities = facilities.sort((a, b) => a.distance - b.distance)
-    
-    // Debug logging for mock facilities
-    console.log("[v0] Generated mock facilities:")
-    sortedFacilities.forEach((f, i) => {
-      console.log(`  ${i + 1}. ${f.name}: ${f.distance}km (${f.hasAmbulance ? 'Ambulance' : 'No Ambulance'})`)
-    })
-    const within5km = sortedFacilities.filter(f => f.distance <= 5)
-    console.log(`[v0] Mock facilities within 5km: ${within5km.length}/${sortedFacilities.length}`)
-    
-    return sortedFacilities
-  }
 
   // Calculate distance between two coordinates using Haversine formula
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {

@@ -183,30 +183,8 @@ export function HospitalSelection({
     return "AUTO-SELECTING NOW"
   }
 
-  useEffect(() => {
-    console.log("[v0] HospitalSelection received hospitals:", hospitals.length)
-    console.log("[v0] All hospitals received:")
-    hospitals.forEach(h => {
-      console.log(`  - ${h.name}: ${h.distance}km away (Ambulance: ${h.hasAmbulance})`)
-    })
-  }, [hospitals])
-
   // Filter hospitals within 5km radius
   const hospitalsWithin5km = hospitals.filter((h) => h.distance <= 5)
-  
-  useEffect(() => {
-    console.log("[v0] Filtered hospitals within 5km:")
-    console.log(`  Total within 5km: ${hospitalsWithin5km.length}`)
-    console.log(`  Total beyond 5km: ${hospitals.filter((h) => h.distance > 5).length}`)
-    if (hospitalsWithin5km.length === 0 && hospitals.length > 0) {
-      console.log("[v0] WARNING: No hospitals within 5km!")
-      console.log("[v0] Closest hospital is:", hospitals[0].name, "at", hospitals[0].distance, "km")
-      console.log("[v0] Distance distribution:")
-      hospitals.slice(0, 5).forEach(h => {
-        console.log(`    ${h.name}: ${h.distance}km`)
-      })
-    }
-  }, [hospitalsWithin5km, hospitals])
   const ambulanceHospitals = hospitalsWithin5km.filter((h) => h.hasAmbulance)
   const selfDriveHospitals = hospitalsWithin5km
 
