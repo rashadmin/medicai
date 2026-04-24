@@ -37,12 +37,12 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
 
   const radiusSteps = [5000, 10000, 15000, 20000] // 5km, 10km, 15km, 20km in meters
 
-  const fetchHospitalsWithRadius = async (lat: number, lng: number, radius: number) => {
+  const fetchHospitalsWithRadius = async (lat: number = 7.1784, lng: number = 4.6976, radius: number) => {
     console.log("[v0] Fetching hospitals with radius:", radius)
     const response = await fetch("/api/hospitals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 7.1784, 4.6976, radius }),
+      body: JSON.stringify({ lat, lng, radius }),
     })
 
     if (!response.ok) {
