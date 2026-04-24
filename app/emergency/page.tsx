@@ -91,6 +91,8 @@ export default function EmergencyPage() {
   const [isGettingLocation, setIsGettingLocation] = useState(true)
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false)
   const [locationAttempts, setLocationAttempts] = useState(0)
+  const [hospitalsError, setHospitalsError] = useState<string | null>(null)
+  const [isFetchingHospitals, setIsFetchingHospitals] = useState(false)
 
   // Request location permission immediately when component mounts
   useEffect(() => {
@@ -378,8 +380,12 @@ export default function EmergencyPage() {
 
   // Fetch nearby medical facilities based on user location
   const fetchNearbyMedicalFacilities = async (location: LocationInfo) => {
+    setIsFetchingHospitals(true)
+    setHospitalsError(null)
+    let apiSuccess = false
+
     try {
-      console.log("Fetching medical facilities near:", location)
+      console.log("[v0] Fetching medical facilities near:", location)
 
       // Expanded query to include all medical facilities and services
       const overpassQuery = `
@@ -413,7 +419,7 @@ export default function EmergencyPage() {
 
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
-        console.log("Overpass API request timeout, aborting...")
+        console.log("[v0] Overpass API request timeout, aborting...")
         controller.abort()
       }, 15000) // Reduced timeout to 15 seconds
 
@@ -434,7 +440,7 @@ export default function EmergencyPage() {
         }
 
         const data = await response.json()
-        console.log("Overpass API response:", data)
+        console.log("[v0] Overpass API response:", data)
 
         const facilityData = data.elements
           .filter((element: any) => {
@@ -531,10 +537,11 @@ export default function EmergencyPage() {
           })
           .slice(0, 20) // Get top 20 closest facilities
 
-        console.log("Processed facilities:", facilityData)
+        console.log("[v0] Processed facilities:", facilityData)
 
         if (facilityData.length > 0) {
           console.log("[v0] Found real facilities from API:", facilityData.length)
+          apiSuccess = true
           // Store all facilities for consistency
           setAllFacilities(facilityData)
           // Set the displayed facilities (will be filtered in HospitalSelection)
@@ -546,29 +553,37 @@ export default function EmergencyPage() {
           console.log("[v0] Generated mock facilities:", mockFacilities.length)
           setAllFacilities(mockFacilities)
           setMedicalFacilities(mockFacilities)
+          setHospitalsError("No hospitals found at this location. Showing nearby medical facilities.")
         }
       } catch (fetchError: any) {
         clearTimeout(timeoutId)
 
+        let errorMsg = "Unable to fetch real hospital data"
         if (fetchError.name === "AbortError") {
-          console.log("Overpass API request was aborted due to timeout")
+          console.log("[v0] Overpass API request was aborted due to timeout")
+          errorMsg = "Location service took too long to respond"
         } else {
-          console.warn("Overpass API fetch failed:", fetchError.message)
+          console.warn("[v0] Overpass API fetch failed:", fetchError.message)
         }
 
+        setHospitalsError(errorMsg)
+
         // Always fallback to mock data on any fetch error
-        console.log("Using mock data due to API error")
+        console.log("[v0] Using mock data due to API error")
         const mockFacilities = generateMockFacilities(location)
         setAllFacilities(mockFacilities)
         setMedicalFacilities(mockFacilities)
       }
     } catch (error) {
-      console.error("Error in fetchNearbyMedicalFacilities:", error)
+      console.error("[v0] Error in fetchNearbyMedicalFacilities:", error)
+      setHospitalsError("Unable to locate hospitals. Please try again.")
       // Fallback to mock data with user's location
       const mockFacilities = generateMockFacilities(location)
       setAllFacilities(mockFacilities)
       setMedicalFacilities(mockFacilities)
     }
+
+    setIsFetchingHospitals(false)
   }
 
   // Generate mock medical facilities near user location
@@ -680,6 +695,14 @@ export default function EmergencyPage() {
       Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     return R * c
+  }
+
+  // Retry fetching hospitals
+  const retryFetchHospitals = async () => {
+    if (userLocation) {
+      console.log("[v0] Retrying hospital fetch...")
+      await fetchNearbyMedicalFacilities(userLocation)
+    }
   }
 
   // Watch for location changes and fetch facilities
@@ -944,6 +967,9 @@ export default function EmergencyPage() {
             setIsContactingHospitals={setIsContactingHospitals}
             countdown={inactivityTimer}
             showCountdown={true}
+            hospitalsError={hospitalsError}
+            onRetry={retryFetchHospitals}
+            isFetchingHospitals={isFetchingHospitals}
           />
             )}
 

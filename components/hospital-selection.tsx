@@ -51,6 +51,9 @@ interface HospitalSelectionProps {
   setIsContactingHospitals: (contacting: boolean) => void
   countdown: number
   showCountdown: boolean
+  hospitalsError?: string | null
+  onRetry?: () => Promise<void>
+  isFetchingHospitals?: boolean
 }
 
 export function HospitalSelection({
@@ -60,11 +63,27 @@ export function HospitalSelection({
   setIsContactingHospitals,
   countdown,
   showCountdown,
+  hospitalsError,
+  onRetry,
+  isFetchingHospitals = false,
 }: HospitalSelectionProps) {
   const [selectedTab, setSelectedTab] = useState("ambulance")
   const [audioEnabled, setAudioEnabled] = useState(true)
+  const [isRetrying, setIsRetrying] = useState(false)
   const audioContextRef = useRef<AudioContext | null>(null)
   const lastBeepTime = useRef<number>(0)
+
+  // Handle retry
+  const handleRetry = async () => {
+    setIsRetrying(true)
+    try {
+      if (onRetry) {
+        await onRetry()
+      }
+    } finally {
+      setIsRetrying(false)
+    }
+  }
 
   // Initialize audio context
   useEffect(() => {
@@ -275,6 +294,30 @@ export function HospitalSelection({
           </CardTitle>
         </CardHeader>
       </Card>
+
+      {hospitalsError && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start space-x-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-amber-800 mb-1">Unable to Locate Hospitals</h3>
+                  <p className="text-sm text-amber-700">{hospitalsError}</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleRetry}
+                disabled={isRetrying || isFetchingHospitals}
+                className="flex-shrink-0"
+              >
+                {isRetrying || isFetchingHospitals ? "Retrying..." : "Retry"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
