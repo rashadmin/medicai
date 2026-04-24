@@ -19,14 +19,14 @@ interface MedicalFacility {
   id: string
   name: string
   type:
-    | "hospital"
-    | "clinic"
-    | "urgent_care"
-    | "emergency_room"
-    | "medical_center"
-    | "diagnostic_center"
-    | "pharmacy"
-    | "laboratory"
+  | "hospital"
+  | "clinic"
+  | "urgent_care"
+  | "emergency_room"
+  | "medical_center"
+  | "diagnostic_center"
+  | "pharmacy"
+  | "laboratory"
   distance: number
   eta: number
   hasAmbulance: boolean
@@ -475,45 +475,60 @@ export default function EmergencyPage() {
     const radiusSteps = [5000, 10000, 15000, 20000] // 5km, 10km, 15km, 20km in meters
     let radiusIndex = 0
     let foundResults = false
+    try {
+      while (radiusIndex < radiusSteps.length && !foundResults) {
+        const radius = radiusSteps[radiusIndex]
+        const radiusKm = radius / 1000
 
-    while (radiusIndex < radiusSteps.length && !foundResults) {
-      const radius = radiusSteps[radiusIndex]
-      const radiusKm = radius / 1000
+        console.log(`[v0] Searching for facilities within ${radiusKm}km...`)
+        setHospitalsError(`Searching for hospitals within ${radiusKm}km...`)
 
-      console.log(`[v0] Searching for facilities within ${radiusKm}km...`)
-      setHospitalsError(`Searching for hospitals within ${radiusKm}km...`)
+        try {
+          const response = await fetch("/api/hospitals", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ lat: location.lat, lng: location.lng, radius }),
+          })
 
-      try {
-        const response = await fetch("/api/hospitals", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ lat: location.lat, lng: location.lng, radius }),
-        })
+          if (!response.ok) {
+            throw new Error(`Backend API returned ${response.status}`)
+          }
 
-        if (!response.ok) {
-          throw new Error(`Backend API returned ${response.status}`)
-        }
+          const data = await response.json()
+          console.log(`[v0] API response for ${radiusKm}km radius:`, data.elements?.length || 0)
 
-        const data = await response.json()
-        console.log(`[v0] API response for ${radiusKm}km radius:`, data.elements?.length || 0)
+          if (data.elements && data.elements.length > 0) {
+            const facilityData = processFacilityData(data, location)
 
-        if (data.elements && data.elements.length > 0) {
-          const facilityData = processFacilityData(data, location)
-
-          if (facilityData.length > 0) {
-            console.log(`[v0] Found ${facilityData.length} facilities within ${radiusKm}km`)
-            setAllFacilities(facilityData)
-            setMedicalFacilities(facilityData)
-            setHospitalsError(null)
-            foundResults = true
-            setIsFetchingHospitals(false)
+            if (facilityData.length > 0) {
+              console.log(`[v0] Found ${facilityData.length} facilities within ${radiusKm}km`)
+              setAllFacilities(facilityData)
+              setMedicalFacilities(facilityData)
+              setHospitalsError(null)
+              foundResults = true
+              setIsFetchingHospitals(false)
+            } else {
+              // No valid facilities, try next radius
+              if (radiusIndex < radiusSteps.length - 1) {
+                radiusIndex++
+                console.log(`[v0] No valid facilities at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
+                await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
+              } else {
+                // Max radius reached
+                setAllFacilities([])
+                setMedicalFacilities([])
+                setHospitalsError("No hospitals found within 20km. Please check the location or try again.")
+                setIsFetchingHospitals(false)
+                foundResults = true
+              }
+            }
           } else {
-            // No valid facilities, try next radius
+            // No results, try next radius
             if (radiusIndex < radiusSteps.length - 1) {
               radiusIndex++
-              console.log(`[v0] No valid facilities at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
+              console.log(`[v0] No results at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
               await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
             } else {
               // Max radius reached
@@ -524,44 +539,30 @@ export default function EmergencyPage() {
               foundResults = true
             }
           }
-        } else {
-          // No results, try next radius
+        } catch (fetchError: any) {
+          console.error(`[v0] Error fetching at ${radiusKm}km radius:`, fetchError)
+
+          // Try next radius on error
           if (radiusIndex < radiusSteps.length - 1) {
             radiusIndex++
-            console.log(`[v0] No results at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
-            await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
+            console.log(`[v0] Error at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
+            await new Promise(resolve => setTimeout(resolve, 1000))
           } else {
             // Max radius reached
+            let errorMsg = "Unable to fetch hospital data"
+            if (fetchError.name === "AbortError") {
+              console.log("[v0] Overpass API request was aborted due to timeout")
+              errorMsg = "Hospital search took too long to respond. Please try again."
+            } else {
+              console.warn("[v0] Hospital API fetch failed:", fetchError.message)
+            }
+
+            setHospitalsError(errorMsg)
             setAllFacilities([])
             setMedicalFacilities([])
-            setHospitalsError("No hospitals found within 20km. Please check the location or try again.")
             setIsFetchingHospitals(false)
             foundResults = true
           }
-        }
-      } catch (fetchError: any) {
-        console.error(`[v0] Error fetching at ${radiusKm}km radius:`, fetchError)
-
-        // Try next radius on error
-        if (radiusIndex < radiusSteps.length - 1) {
-          radiusIndex++
-          console.log(`[v0] Error at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
-          await new Promise(resolve => setTimeout(resolve, 1000))
-        } else {
-          // Max radius reached
-          let errorMsg = "Unable to fetch hospital data"
-          if (fetchError.name === "AbortError") {
-            console.log("[v0] Overpass API request was aborted due to timeout")
-            errorMsg = "Hospital search took too long to respond. Please try again."
-          } else {
-            console.warn("[v0] Hospital API fetch failed:", fetchError.message)
-          }
-
-          setHospitalsError(errorMsg)
-          setAllFacilities([])
-          setMedicalFacilities([])
-          setIsFetchingHospitals(false)
-          foundResults = true
         }
       }
     } catch (error) {
@@ -641,14 +642,14 @@ export default function EmergencyPage() {
     const bestFacility =
       acceptedAmbulanceFacilities.length > 0
         ? acceptedAmbulanceFacilities.sort((a, b) => {
-            // Prioritize by distance first, then score
-            const distanceDiff = a.distance - b.distance
-            if (Math.abs(distanceDiff) < 1) {
-              // If distances are similar (within 1km)
-              return b.score - a.score // Higher score wins
-            }
-            return distanceDiff // Closer distance wins
-          })[0]
+          // Prioritize by distance first, then score
+          const distanceDiff = a.distance - b.distance
+          if (Math.abs(distanceDiff) < 1) {
+            // If distances are similar (within 1km)
+            return b.score - a.score // Higher score wins
+          }
+          return distanceDiff // Closer distance wins
+        })[0]
         : allFacilities.sort((a, b) => a.distance - b.distance)[0] // Fallback to closest facility
 
     setSelectedFacility(bestFacility)
@@ -679,11 +680,11 @@ export default function EmergencyPage() {
       console.log("[v0] Waiting for location and hospitals...")
       const maxWait = 8000 // Wait max 8 seconds
       const startTime = Date.now()
-      
+
       const waitInterval = setInterval(() => {
         const elapsed = Date.now() - startTime
         console.log(`[v0] Waiting... elapsed: ${elapsed}ms, location: ${userLocation ? 'yes' : 'no'}, facilities: ${medicalFacilities.length}`)
-        
+
         if ((userLocation && medicalFacilities.length > 0) || elapsed >= maxWait) {
           clearInterval(waitInterval)
           console.log("[v0] Proceeding with hospitals:", medicalFacilities.length)
@@ -692,7 +693,7 @@ export default function EmergencyPage() {
           startCountdown()
         }
       }, 500)
-      
+
       return
     }
 
@@ -855,17 +856,17 @@ export default function EmergencyPage() {
             )}
 
             {step === "hospitals" && (
-          <HospitalSelection
-            hospitals={medicalFacilities}
-            onHospitalSelect={handleFacilitySelect}
-            isContactingHospitals={isContactingHospitals}
-            setIsContactingHospitals={setIsContactingHospitals}
-            countdown={inactivityTimer}
-            showCountdown={true}
-            hospitalsError={hospitalsError}
-            onRetry={retryFetchHospitals}
-            isFetchingHospitals={isFetchingHospitals}
-          />
+              <HospitalSelection
+                hospitals={medicalFacilities}
+                onHospitalSelect={handleFacilitySelect}
+                isContactingHospitals={isContactingHospitals}
+                setIsContactingHospitals={setIsContactingHospitals}
+                countdown={inactivityTimer}
+                showCountdown={true}
+                hospitalsError={hospitalsError}
+                onRetry={retryFetchHospitals}
+                isFetchingHospitals={isFetchingHospitals}
+              />
             )}
 
             {(step === "selected" || step === "tracking") && selectedFacility && (
