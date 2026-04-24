@@ -570,6 +570,7 @@ export default function EmergencyPage() {
       setAllFacilities([])
       setMedicalFacilities([])
       setIsFetchingHospitals(false)
+    }
   }
 
 
