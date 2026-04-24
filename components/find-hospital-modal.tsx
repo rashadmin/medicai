@@ -37,7 +37,7 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
 
   const radiusSteps = [5000, 10000, 15000, 20000] // 5km, 10km, 15km, 20km in meters
 
-  const fetchHospitalsWithRadius = async (lat: number = 7.1784, lng: number = 4.6976, radius: number) => {
+  const fetchHospitalsWithRadius = async (lat: number, lng: number, radius: number) => {
     console.log("[v0] Fetching hospitals with radius:", radius)
     const response = await fetch("/api/hospitals", {
       method: "POST",
@@ -144,7 +144,7 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
           async (position) => {
             const { latitude, longitude } = position.coords
             console.log("[v0] User location:", { latitude, longitude })
-            await searchWithProgressiveRadius(latitude, longitude)
+            await searchWithProgressiveRadius(7.1784, 4.6976)
           },
           (error) => {
             console.error("[v0] Geolocation error:", error.message)
