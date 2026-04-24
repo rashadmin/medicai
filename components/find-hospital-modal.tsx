@@ -144,7 +144,7 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
           async (position) => {
             const { latitude, longitude } = position.coords
             console.log("[v0] User location:", { latitude, longitude })
-            await searchWithProgressiveRadius(7.1784, 4.6976)
+            await searchWithProgressiveRadius(latitude, longitude)
           },
           (error) => {
             console.error("[v0] Geolocation error:", error.message)
