@@ -387,36 +387,6 @@ export default function EmergencyPage() {
     try {
       console.log("[v0] Fetching medical facilities near:", location)
 
-      // Expanded query to include all medical facilities and services
-      const overpassQuery = `
-        [out:json][timeout:25];
-        (
-          node["amenity"="hospital"](around:25000,${location.lat},${location.lng});
-          way["amenity"="hospital"](around:25000,${location.lat},${location.lng});
-          relation["amenity"="hospital"](around:25000,${location.lat},${location.lng});
-          node["amenity"="clinic"](around:25000,${location.lat},${location.lng});
-          way["amenity"="clinic"](around:25000,${location.lat},${location.lng});
-          relation["amenity"="clinic"](around:25000,${location.lat},${location.lng});
-          node["amenity"="pharmacy"](around:25000,${location.lat},${location.lng});
-          way["amenity"="pharmacy"](around:25000,${location.lat},${location.lng});
-          node["healthcare"="hospital"](around:25000,${location.lat},${location.lng});
-          way["healthcare"="hospital"](around:25000,${location.lat},${location.lng});
-          node["healthcare"="clinic"](around:25000,${location.lat},${location.lng});
-          way["healthcare"="clinic"](around:25000,${location.lat},${location.lng});
-          node["healthcare"="centre"](around:25000,${location.lat},${location.lng});
-          way["healthcare"="centre"](around:25000,${location.lat},${location.lng});
-          node["healthcare"="laboratory"](around:25000,${location.lat},${location.lng});
-          way["healthcare"="laboratory"](around:25000,${location.lat},${location.lng});
-          node["healthcare"="diagnostic_centre"](around:25000,${location.lat},${location.lng});
-          way["healthcare"="diagnostic_centre"](around:25000,${location.lat},${location.lng});
-          node["emergency"="yes"](around:25000,${location.lat},${location.lng});
-          way["emergency"="yes"](around:25000,${location.lat},${location.lng});
-          node["healthcare:speciality"](around:25000,${location.lat},${location.lng});
-          way["healthcare:speciality"](around:25000,${location.lat},${location.lng});
-        );
-        out center meta;
-      `
-
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
         console.log("[v0] Overpass API request timeout, aborting...")
@@ -424,23 +394,24 @@ export default function EmergencyPage() {
       }, 15000) // Reduced timeout to 15 seconds
 
       try {
-        const response = await fetch("https://overpass-api.de/api/interpreter", {
+        console.log("[v0] Calling backend hospital API...")
+        const response = await fetch("/api/hospitals", {
           method: "POST",
-          body: overpassQuery,
           headers: {
-            "Content-Type": "text/plain",
+            "Content-Type": "application/json",
           },
+          body: JSON.stringify({ lat: location.lat, lng: location.lng }),
           signal: controller.signal,
         })
 
         clearTimeout(timeoutId)
 
         if (!response.ok) {
-          throw new Error(`Overpass API returned ${response.status}`)
+          throw new Error(`Backend API returned ${response.status}`)
         }
 
         const data = await response.json()
-        console.log("[v0] Overpass API response:", data)
+        console.log("[v0] Hospital API response:", data)
 
         const facilityData = data.elements
           .filter((element: any) => {
