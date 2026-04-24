@@ -54,6 +54,8 @@ export async function POST(request: NextRequest) {
         body: new URLSearchParams({ data: overpassQuery }),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'MedicAI/1.0 (Medical Emergency Response App; +https://medicai.app)',
+          'Accept': 'application/json',
         },
         signal: controller.signal,
       });
