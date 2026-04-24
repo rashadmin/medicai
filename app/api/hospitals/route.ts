@@ -51,9 +51,9 @@ export async function POST(request: NextRequest) {
     try {
       const response = await fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST',
-        body: overpassQuery,
+        body: new URLSearchParams({ data: overpassQuery }),
         headers: {
-          'Content-Type': 'text/plain',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
         signal: controller.signal,
       });
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     } catch (error: any) {
       clearTimeout(timeoutId);
       console.error('[v0] Overpass API fetch error:', error.message);
-      
+
       // Return empty array so client can use mock data
       return NextResponse.json(
         { error: error.message, elements: [] },
