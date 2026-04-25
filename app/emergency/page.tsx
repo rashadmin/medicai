@@ -474,7 +474,7 @@ export default function EmergencyPage() {
     setHospitalsError(null)
     location = { ...location, lat: 7.1784, lng: 4.6976 }
 
-    const radiusSteps = [5000, 10000, 15000, 50000] // 5km, 10km, 15km, 20km in meters
+    const radiusSteps = [5000, 10000, 15000, 20000] // 5km, 10km, 15km, 20km in meters
     let radiusIndex = 0
     let foundResults = false
     try {
@@ -503,7 +503,9 @@ export default function EmergencyPage() {
           console.log(`[v0] API response for ${radiusKm}km radius:`, data.elements?.length || 0)
 
           if (data.elements && data.elements.length > 0) {
+            console.log(`[v0] Processing ${data.elements.length} elements from API...`)
             const facilityData = processFacilityData(data, location)
+            console.log(`[v0] After processing: ${facilityData.length} valid facilities`)
 
             if (facilityData.length > 0) {
               console.log(`[v0] Found ${facilityData.length} facilities within ${radiusKm}km`)
@@ -516,7 +518,7 @@ export default function EmergencyPage() {
               // No valid facilities, try next radius
               if (radiusIndex < radiusSteps.length - 1) {
                 radiusIndex++
-                console.log(`[v0] No valid facilities at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
+                console.log(`[v0] No valid facilities at ${radiusKm}km (0 passed filtering), expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
                 await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
               } else {
                 // Max radius reached
