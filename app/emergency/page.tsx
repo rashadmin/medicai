@@ -501,16 +501,33 @@ export default function EmergencyPage() {
 
           if (data.elements && data.elements.length > 0) {
             console.log(`[v0] Processing ${data.elements.length} elements from API...`)
+            console.log(`[v0] API data returned:`, data.elements)
             const facilityData = processFacilityData(data, location)
             console.log(`[v0] After processing: ${facilityData.length} valid facilities`)
+            console.log(`[v0] Processed facility data:`, facilityData)
 
-            if (facilityData.length > 0) {
-              console.log(`[v0] Found ${facilityData.length} facilities within ${radiusKm}km`)
+            if (facilityData.length >= 3) {
+              console.log(`[v0] Found ${facilityData.length} facilities within ${radiusKm}km - sufficient results`)
               setAllFacilities(facilityData)
               setMedicalFacilities(facilityData)
               setHospitalsError(null)
               foundResults = true
               setIsFetchingHospitals(false)
+            } else if (facilityData.length > 0 && facilityData.length < 3) {
+              // Found some facilities but less than 3, try next radius to find more
+              if (radiusIndex < radiusSteps.length - 1) {
+                radiusIndex++
+                console.log(`[v0] Only ${facilityData.length} facilities found at ${radiusKm}km (need at least 3), expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
+                await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
+              } else {
+                // Max radius reached, use what we have
+                console.log(`[v0] Max radius reached with ${facilityData.length} facilities`)
+                setAllFacilities(facilityData)
+                setMedicalFacilities(facilityData)
+                setHospitalsError(null)
+                foundResults = true
+                setIsFetchingHospitals(false)
+              }
             } else {
               // No valid facilities, try next radius
               if (radiusIndex < radiusSteps.length - 1) {
@@ -521,7 +538,7 @@ export default function EmergencyPage() {
                 // Max radius reached
                 setAllFacilities([])
                 setMedicalFacilities([])
-                setHospitalsError("No hospitals found within 20km. Please check the location or try again.")
+                setHospitalsError("No hospitals found within 50km. Please check the location or try again.")
                 setIsFetchingHospitals(false)
                 foundResults = true
               }
