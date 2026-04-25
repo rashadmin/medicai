@@ -383,11 +383,8 @@ export default function EmergencyPage() {
   const processFacilityData = (data: any, location: LocationInfo) => {
     return data.elements
       .filter((element: any) => {
-        return (
-          element.tags &&
-          (element.tags.name || element.tags["name:en"] || element.tags.operator || element.tags.brand) &&
-          (element.lat || element.center?.lat)
-        )
+        // Temporarily disabled filters - include all elements
+        return true
       })
       .map((element: any, index: number) => {
         const lat = element.lat || element.center?.lat || location.lat
