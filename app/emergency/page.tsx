@@ -387,34 +387,35 @@ export default function EmergencyPage() {
         return true
       })
       .map((element: any, index: number) => {
+        const tags = element.tags || {}
         const lat = element.lat || element.center?.lat || location.lat
         const lng = element.lon || element.center?.lon || location.lng
         const distance = calculateDistance(location.lat, location.lng, lat, lng)
         const eta = Math.round(distance * 2.5)
 
         let facilityType: MedicalFacility["type"] = "medical_center"
-        if (element.tags.amenity === "hospital" || element.tags.healthcare === "hospital") {
+        if (tags.amenity === "hospital" || tags.healthcare === "hospital") {
           facilityType = "hospital"
-        } else if (element.tags.amenity === "clinic" || element.tags.healthcare === "clinic") {
+        } else if (tags.amenity === "clinic" || tags.healthcare === "clinic") {
           facilityType = "clinic"
-        } else if (element.tags.amenity === "pharmacy") {
+        } else if (tags.amenity === "pharmacy") {
           facilityType = "pharmacy"
-        } else if (element.tags.healthcare === "laboratory") {
+        } else if (tags.healthcare === "laboratory") {
           facilityType = "laboratory"
-        } else if (element.tags.healthcare === "diagnostic_centre") {
+        } else if (tags.healthcare === "diagnostic_centre") {
           facilityType = "diagnostic_center"
-        } else if (element.tags.emergency === "yes") {
+        } else if (tags.emergency === "yes") {
           facilityType = "emergency_room"
-        } else if (element.tags.healthcare === "centre") {
+        } else if (tags.healthcare === "centre") {
           facilityType = "medical_center"
-        } else if (element.tags["healthcare:speciality"]) {
+        } else if (tags["healthcare:speciality"]) {
           facilityType = "clinic"
         }
 
         const services = []
-        if (element.tags.emergency === "yes") services.push("Emergency Care")
-        if (element.tags["healthcare:speciality"]) {
-          const specialities = element.tags["healthcare:speciality"].split(";")
+        if (tags.emergency === "yes") services.push("Emergency Care")
+        if (tags["healthcare:speciality"]) {
+          const specialities = tags["healthcare:speciality"].split(";")
           services.push(...specialities.slice(0, 2))
         }
         if (facilityType === "hospital") services.push("Inpatient Care", "Surgery")
@@ -426,22 +427,22 @@ export default function EmergencyPage() {
 
         let availability: MedicalFacility["availability"] = "limited"
         if (
-          element.tags.opening_hours === "24/7" ||
+          tags.opening_hours === "24/7" ||
           facilityType === "hospital" ||
           facilityType === "emergency_room"
         ) {
           availability = "24/7"
-        } else if (element.tags.emergency === "yes") {
+        } else if (tags.emergency === "yes") {
           availability = "emergency_only"
         }
 
         return {
           id: element.id?.toString() || `facility_${index}`,
           name:
-            element.tags.name ||
-            element.tags["name:en"] ||
-            element.tags.operator ||
-            element.tags.brand ||
+            tags.name ||
+            tags["name:en"] ||
+            tags.operator ||
+            tags.brand ||
             `Medical Facility ${index + 1}`,
           type: facilityType,
           distance: Math.round(distance * 10) / 10,
@@ -449,12 +450,12 @@ export default function EmergencyPage() {
           hasAmbulance: facilityType === "hospital" || facilityType === "emergency_room" || Math.random() > 0.7,
           score: Math.floor(Math.random() * 20) + 80,
           address:
-            element.tags["addr:full"] ||
-            `${element.tags["addr:housenumber"] || ""} ${element.tags["addr:street"] || ""}`.trim() ||
-            element.tags["addr:city"] ||
+            tags["addr:full"] ||
+            `${tags["addr:housenumber"] || ""} ${tags["addr:street"] || ""}`.trim() ||
+            tags["addr:city"] ||
             "Address not available",
           phone:
-            element.tags.phone || element.tags["contact:phone"] || element.tags.telephone || "Phone not available",
+            tags.phone || tags["contact:phone"] || tags.telephone || "Phone not available",
           lat,
           lng,
           services,
@@ -469,7 +470,6 @@ export default function EmergencyPage() {
   const fetchNearbyMedicalFacilities = async (location: LocationInfo) => {
     setIsFetchingHospitals(true)
     setHospitalsError(null)
-    location = { ...location, lat: 7.1784, lng: 4.6976 }
 
     const radiusSteps = [5000, 10000, 15000, 20000, 30000, 40000, 50000] // 5km, 10km, 15km, 20km, 30km, 40km, 50km in meters
     let radiusIndex = 0
