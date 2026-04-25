@@ -504,6 +504,7 @@ export default function EmergencyPage() {
 
             if (facilityData.length >= 3) {
               console.log(`[v0] Found ${facilityData.length} facilities within ${radiusKm}km - sufficient results`)
+              medicalFacilitiesRef.current = facilityData
               setAllFacilities(facilityData)
               setMedicalFacilities(facilityData)
               setHospitalsError(null)
@@ -516,6 +517,7 @@ export default function EmergencyPage() {
               } else {
                 // Max radius reached, use what we have
                 console.log(`[v0] Max radius reached with ${facilityData.length} facilities`)
+                medicalFacilitiesRef.current = facilityData
                 setAllFacilities(facilityData)
                 setMedicalFacilities(facilityData)
                 setHospitalsError(null)
