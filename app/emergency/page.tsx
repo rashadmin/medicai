@@ -93,6 +93,7 @@ export default function EmergencyPage() {
   const [locationAttempts, setLocationAttempts] = useState(0)
   const [hospitalsError, setHospitalsError] = useState<string | null>(null)
   const [isFetchingHospitals, setIsFetchingHospitals] = useState(false)
+  const [currentRadius, setCurrentRadius] = useState(5000) // Track current search radius
 
   // Request location permission immediately when component mounts
   useEffect(() => {
@@ -471,8 +472,7 @@ export default function EmergencyPage() {
   const fetchNearbyMedicalFacilities = async (location: LocationInfo) => {
     setIsFetchingHospitals(true)
     setHospitalsError(null)
-    location = { ...location, lat: 7.1784, lng: 4.6976 }
-    const radiusSteps = [5000, 10000, 15000, 50000] // 5km, 10km, 15km, 20km in meters
+    const radiusSteps = [5000, 10000, 15000, 20000] // 5km, 10km, 15km, 20km in meters
     let radiusIndex = 0
     let foundResults = false
     try {
@@ -481,6 +481,7 @@ export default function EmergencyPage() {
         const radiusKm = radius / 1000
 
         console.log(`[v0] Searching for facilities within ${radiusKm}km...`)
+        setCurrentRadius(radius)
         setHospitalsError(`Searching for hospitals within ${radiusKm}km...`)
 
         try {
@@ -866,6 +867,7 @@ export default function EmergencyPage() {
                 hospitalsError={hospitalsError}
                 onRetry={retryFetchHospitals}
                 isFetchingHospitals={isFetchingHospitals}
+                currentRadius={currentRadius}
               />
             )}
 

@@ -54,6 +54,7 @@ interface HospitalSelectionProps {
   hospitalsError?: string | null
   onRetry?: () => Promise<void>
   isFetchingHospitals?: boolean
+  currentRadius?: number
 }
 
 export function HospitalSelection({
@@ -64,6 +65,7 @@ export function HospitalSelection({
   countdown,
   showCountdown,
   hospitalsError,
+  currentRadius = 5000,
   onRetry,
   isFetchingHospitals = false,
 }: HospitalSelectionProps) {
@@ -371,9 +373,9 @@ export function HospitalSelection({
             <Card>
               <CardContent className="p-8 text-center">
                 <Ambulance className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <h3 className="text-lg font-medium mb-2">No Ambulance Services Within 5km</h3>
+                <h3 className="text-lg font-medium mb-2">No Ambulance Services Within {currentRadius / 1000}km</h3>
                 <p className="text-gray-600">
-                  No hospitals with ambulance services were found within 5km of the incident location. Please consider the self-drive option or
+                  No hospitals with ambulance services were found within {currentRadius / 1000}km of the incident location. Please consider the self-drive option or
                   contact emergency services directly.
                 </p>
               </CardContent>
@@ -388,9 +390,9 @@ export function HospitalSelection({
             <Card>
               <CardContent className="p-8 text-center">
                 <MapPin className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <h3 className="text-lg font-medium mb-2">No Medical Facilities Within 5km</h3>
+                <h3 className="text-lg font-medium mb-2">No Medical Facilities Within {currentRadius / 1000}km</h3>
                 <p className="text-gray-600">
-                  No medical facilities were found within 5km of the incident location. Please contact
+                  No medical facilities were found within {currentRadius / 1000}km of the incident location. Please contact
                   emergency services directly.
                 </p>
               </CardContent>
