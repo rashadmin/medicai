@@ -93,6 +93,7 @@ export function FindHospitalModal({ onClose }: FindHospitalModalProps) {
           console.log("[v0] Found results at radius:", radiusKm, "km")
           setHospitals(results)
           setSearchStatus(`Found hospitals within ${radiusKm}km`)
+          setError(null)
           foundResults = true
           setIsLoading(false)
         } else {
