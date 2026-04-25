@@ -452,8 +452,7 @@ export default function EmergencyPage() {
     setIsFetchingHospitals(true)
     setHospitalsError(null)
 
-    // ⚠️ Remove this override when done testing
-    location = { ...location, lat: 7.1784, lng: 4.6976 }
+
 
     const radiusSteps = [5000, 10000, 15000, 20000, 30000, 40000, 50000]
     let radiusIndex = 0
