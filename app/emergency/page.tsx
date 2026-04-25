@@ -654,6 +654,8 @@ export default function EmergencyPage() {
     // ✅ Read from refs (always current) not state (may be stale)
     if (userLocationRef.current && medicalFacilitiesRef.current.length > 0) {
       console.log("[v0] Location and hospitals ready, proceeding to selection")
+      // ✅ Update state with current ref values to ensure render gets fresh data
+      setMedicalFacilities(medicalFacilitiesRef.current)
       setStep("hospitals")
       setIsLoading(false)
       startCountdown()
@@ -674,6 +676,8 @@ export default function EmergencyPage() {
       if ((currentLocation && currentFacilities.length > 0) || elapsed >= maxWait) {
         clearInterval(waitInterval)
         console.log("[v0] Proceeding with hospitals:", currentFacilities.length)
+        // ✅ Update state with current ref values to ensure render gets fresh data
+        setMedicalFacilities(currentFacilities)
         setStep("hospitals")
         setIsLoading(false)
         startCountdown()
