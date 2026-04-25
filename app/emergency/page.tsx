@@ -74,17 +74,21 @@ export default function EmergencyPage() {
   const [step, setStep] = useState<"chat" | "hospitals" | "selected" | "tracking">("chat")
   const [emergencyData, setEmergencyData] = useState<EmergencyData | null>(null)
   const [medicalFacilities, setMedicalFacilities] = useState<MedicalFacility[]>([])
-  const [allFacilities, setAllFacilities] = useState<MedicalFacility[]>([]) // Store all facilities for consistency
+  const [allFacilities, setAllFacilities] = useState<MedicalFacility[]>([])
   const [selectedFacility, setSelectedFacility] = useState<MedicalFacility | null>(null)
   const [showAutoSelect, setShowAutoSelect] = useState(false)
   const [showHospitalView, setShowHospitalView] = useState(false)
-  const [inactivityTimer, setInactivityTimer] = useState(120) // Start with 2 minutes (120 seconds)
+  const [inactivityTimer, setInactivityTimer] = useState(120)
   const [isLoading, setIsLoading] = useState(false)
   const [isContactingHospitals, setIsContactingHospitals] = useState(false)
-  const [countdownStarted, setCountdownStarted] = useState(false) // Track if countdown has started
+  const [countdownStarted, setCountdownStarted] = useState(false)
 
   const countdownRef = useRef<NodeJS.Timeout>()
-  const countdownStartTimeRef = useRef<number | null>(null) // Track when countdown started
+  const countdownStartTimeRef = useRef<number | null>(null)
+
+  // ✅ Refs to avoid stale closures in intervals
+  const medicalFacilitiesRef = useRef<MedicalFacility[]>([])
+  const userLocationRef = useRef<LocationInfo | null>(null)
 
   const [userLocation, setUserLocation] = useState<LocationInfo | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
@@ -93,14 +97,22 @@ export default function EmergencyPage() {
   const [locationAttempts, setLocationAttempts] = useState(0)
   const [hospitalsError, setHospitalsError] = useState<string | null>(null)
   const [isFetchingHospitals, setIsFetchingHospitals] = useState(false)
-  const [currentRadius, setCurrentRadius] = useState(5000) // Track current search radius
+  const [currentRadius, setCurrentRadius] = useState(5000)
+
+  // ✅ Keep refs in sync with state
+  useEffect(() => {
+    medicalFacilitiesRef.current = medicalFacilities
+  }, [medicalFacilities])
+
+  useEffect(() => {
+    userLocationRef.current = userLocation
+  }, [userLocation])
 
   // Request location permission immediately when component mounts
   useEffect(() => {
     requestLocationPermission()
   }, [])
 
-  // Request location permission on page load with improved error handling
   const requestLocationPermission = async () => {
     setIsGettingLocation(true)
     setLocationError(null)
@@ -112,11 +124,9 @@ export default function EmergencyPage() {
       return
     }
 
-    // Check if permission is already granted
     if ("permissions" in navigator) {
       try {
         const permission = await navigator.permissions.query({ name: "geolocation" })
-
         if (permission.state === "denied") {
           setLocationPermissionDenied(true)
           setLocationError("Location access is blocked. Using approximate location based on your internet connection.")
@@ -128,7 +138,6 @@ export default function EmergencyPage() {
       }
     }
 
-    // Try high accuracy first, then fallback to lower accuracy
     const tryGeolocation = (highAccuracy: boolean, timeout: number) => {
       return new Promise<LocationInfo>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
@@ -145,16 +154,15 @@ export default function EmergencyPage() {
           {
             enableHighAccuracy: highAccuracy,
             timeout: timeout,
-            maximumAge: highAccuracy ? 300000 : 600000, // 5-10 minutes
+            maximumAge: highAccuracy ? 300000 : 600000,
           },
         )
       })
     }
 
     try {
-      // First attempt: High accuracy with longer timeout
       console.log("Attempting high accuracy geolocation...")
-      const location = await tryGeolocation(true, 15000) // 15 seconds
+      const location = await tryGeolocation(true, 15000)
       setUserLocation(location)
       setIsGettingLocation(false)
       setLocationError(null)
@@ -164,9 +172,8 @@ export default function EmergencyPage() {
       console.warn("High accuracy geolocation failed:", error)
 
       try {
-        // Second attempt: Lower accuracy with shorter timeout
         console.log("Attempting lower accuracy geolocation...")
-        const location = await tryGeolocation(false, 10000) // 10 seconds
+        const location = await tryGeolocation(false, 10000)
         setUserLocation({ ...location, accuracy: "approximate" })
         setIsGettingLocation(false)
         setLocationError("Using approximate GPS location.")
@@ -175,7 +182,6 @@ export default function EmergencyPage() {
       } catch (secondError: any) {
         console.warn("Lower accuracy geolocation also failed:", secondError)
 
-        // Handle specific error types
         let errorMessage = "Unable to get your precise location."
         switch (secondError.code) {
           case secondError.PERMISSION_DENIED:
@@ -186,8 +192,7 @@ export default function EmergencyPage() {
             errorMessage = "GPS location is unavailable. Using approximate location based on your internet connection."
             break
           case secondError.TIMEOUT:
-            errorMessage =
-              "GPS location request timed out. Using approximate location based on your internet connection."
+            errorMessage = "GPS location request timed out. Using approximate location based on your internet connection."
             break
           default:
             errorMessage = "GPS location failed. Using approximate location based on your internet connection."
@@ -199,12 +204,10 @@ export default function EmergencyPage() {
     }
   }
 
-  // Get approximate location from IP address with improved error handling
   const getLocationFromIP = async () => {
     try {
       console.log("Attempting to get location from IP...")
 
-      // Try multiple IP geolocation services with different approaches
       const services = [
         {
           name: "ipapi.co",
@@ -284,7 +287,7 @@ export default function EmergencyPage() {
           console.log(`Trying ${service.name}...`)
 
           const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout per service
+          const timeoutId = setTimeout(() => controller.abort(), 8000)
 
           const response = await fetch(service.url, {
             headers: {
@@ -307,7 +310,6 @@ export default function EmergencyPage() {
           const location = service.parser(data)
 
           if (location && location.lat && location.lng && !isNaN(location.lat) && !isNaN(location.lng)) {
-            // Validate coordinates are reasonable
             if (location.lat >= -90 && location.lat <= 90 && location.lng >= -180 && location.lng <= 180) {
               console.log(`Successfully got IP location from ${service.name}:`, location)
               setUserLocation(location)
@@ -328,12 +330,10 @@ export default function EmergencyPage() {
         }
       }
 
-      // If all services fail, provide a fallback with major city coordinates
       console.error("All IP geolocation services failed")
       setLocationError("Unable to determine your location. Showing medical facilities from major cities.")
       setIsGettingLocation(false)
 
-      // Use major city coordinates as fallback
       const majorCities = [
         { name: "New York", lat: 40.7128, lng: -74.006, state: "NY" },
         { name: "Los Angeles", lat: 34.0522, lng: -118.2437, state: "CA" },
@@ -356,7 +356,6 @@ export default function EmergencyPage() {
       setLocationError("Unable to determine your location. Showing medical facilities from major cities.")
       setIsGettingLocation(false)
 
-      // Final fallback to NYC
       setUserLocation({
         lat: 40.7128,
         lng: -74.006,
@@ -368,23 +367,19 @@ export default function EmergencyPage() {
     }
   }
 
-  // Retry location with user interaction
   const retryLocation = async () => {
     setLocationAttempts((prev) => prev + 1)
     if (locationAttempts < 2) {
       await requestLocationPermission()
     } else {
-      // After 2 attempts, just use IP location
       await getLocationFromIP()
     }
   }
 
-  // Process facility data from API response
   const processFacilityData = (data: any, location: LocationInfo) => {
     return data.elements
       .filter((element: any) => {
-        // Temporarily disabled filters - include all elements
-        return true
+        return true // filters disabled for testing
       })
       .map((element: any, index: number) => {
         const tags = element.tags || {}
@@ -412,7 +407,7 @@ export default function EmergencyPage() {
           facilityType = "clinic"
         }
 
-        const services = []
+        const services: string[] = []
         if (tags.emergency === "yes") services.push("Emergency Care")
         if (tags["healthcare:speciality"]) {
           const specialities = tags["healthcare:speciality"].split(";")
@@ -466,14 +461,17 @@ export default function EmergencyPage() {
       .slice(0, 20)
   }
 
-  // Fetch nearby medical facilities with progressive radius expansion
   const fetchNearbyMedicalFacilities = async (location: LocationInfo) => {
     setIsFetchingHospitals(true)
     setHospitalsError(null)
+
+    // ⚠️ Remove this override when done testing
     location = { ...location, lat: 7.1784, lng: 4.6976 }
-    const radiusSteps = [5000, 10000, 15000, 20000, 30000, 40000, 50000] // 5km, 10km, 15km, 20km, 30km, 40km, 50km in meters
+
+    const radiusSteps = [5000, 10000, 15000, 20000, 30000, 40000, 50000]
     let radiusIndex = 0
     let foundResults = false
+
     try {
       while (radiusIndex < radiusSteps.length && !foundResults) {
         const radius = radiusSteps[radiusIndex]
@@ -501,10 +499,8 @@ export default function EmergencyPage() {
 
           if (data.elements && data.elements.length > 0) {
             console.log(`[v0] Processing ${data.elements.length} elements from API...`)
-            console.log(`[v0] API data returned:`, data.elements)
             const facilityData = processFacilityData(data, location)
             console.log(`[v0] After processing: ${facilityData.length} valid facilities`)
-            console.log(`[v0] Processed facility data:`, facilityData)
 
             if (facilityData.length >= 3) {
               console.log(`[v0] Found ${facilityData.length} facilities within ${radiusKm}km - sufficient results`)
@@ -514,11 +510,9 @@ export default function EmergencyPage() {
               foundResults = true
               setIsFetchingHospitals(false)
             } else if (facilityData.length > 0 && facilityData.length < 3) {
-              // Found some facilities but less than 3, try next radius to find more
               if (radiusIndex < radiusSteps.length - 1) {
                 radiusIndex++
-                console.log(`[v0] Only ${facilityData.length} facilities found at ${radiusKm}km (need at least 3), expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
-                await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
+                console.log(`[v0] Only ${facilityData.length} facilities at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
               } else {
                 // Max radius reached, use what we have
                 console.log(`[v0] Max radius reached with ${facilityData.length} facilities`)
@@ -529,13 +523,10 @@ export default function EmergencyPage() {
                 setIsFetchingHospitals(false)
               }
             } else {
-              // No valid facilities, try next radius
               if (radiusIndex < radiusSteps.length - 1) {
                 radiusIndex++
-                console.log(`[v0] No valid facilities at ${radiusKm}km (0 passed filtering), expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
-                await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
+                console.log(`[v0] No valid facilities at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
               } else {
-                // Max radius reached
                 setAllFacilities([])
                 setMedicalFacilities([])
                 setHospitalsError("No hospitals found within 50km. Please check the location or try again.")
@@ -544,16 +535,13 @@ export default function EmergencyPage() {
               }
             }
           } else {
-            // No results, try next radius
             if (radiusIndex < radiusSteps.length - 1) {
               radiusIndex++
               console.log(`[v0] No results at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
-              await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second delay
             } else {
-              // Max radius reached
               setAllFacilities([])
               setMedicalFacilities([])
-              setHospitalsError("No hospitals found within 20km. Please check the location or try again.")
+              setHospitalsError("No hospitals found within 50km. Please check the location or try again.")
               setIsFetchingHospitals(false)
               foundResults = true
             }
@@ -561,13 +549,10 @@ export default function EmergencyPage() {
         } catch (fetchError: any) {
           console.error(`[v0] Error fetching at ${radiusKm}km radius:`, fetchError)
 
-          // Try next radius on error
           if (radiusIndex < radiusSteps.length - 1) {
             radiusIndex++
             console.log(`[v0] Error at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
-            await new Promise(resolve => setTimeout(resolve, 1000))
           } else {
-            // Max radius reached
             let errorMsg = "Unable to fetch hospital data"
             if (fetchError.name === "AbortError") {
               console.log("[v0] Overpass API request was aborted due to timeout")
@@ -593,11 +578,8 @@ export default function EmergencyPage() {
     }
   }
 
-
-
-  // Calculate distance between two coordinates using Haversine formula
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-    const R = 6371 // Radius of the Earth in kilometers
+    const R = 6371
     const dLat = ((lat2 - lat1) * Math.PI) / 180
     const dLng = ((lng2 - lng1) * Math.PI) / 180
     const a =
@@ -607,7 +589,6 @@ export default function EmergencyPage() {
     return R * c
   }
 
-  // Retry fetching hospitals
   const retryFetchHospitals = async () => {
     if (userLocation) {
       console.log("[v0] Retrying hospital fetch...")
@@ -615,7 +596,6 @@ export default function EmergencyPage() {
     }
   }
 
-  // Watch for location changes and fetch facilities
   useEffect(() => {
     if (userLocation) {
       console.log("[v0] ===== LOCATION ACQUIRED =====")
@@ -628,15 +608,14 @@ export default function EmergencyPage() {
     }
   }, [userLocation])
 
-  // Start countdown when hospitals step is reached - runs independently without resetting
   const startCountdown = () => {
     if (countdownRef.current) {
-      return // Countdown already running, don't restart
+      return
     }
 
     countdownStartTimeRef.current = Date.now()
     setCountdownStarted(true)
-    let countdown = 120 // Start with 2 minutes
+    let countdown = 120
     setInactivityTimer(countdown)
 
     countdownRef.current = setInterval(() => {
@@ -646,30 +625,25 @@ export default function EmergencyPage() {
       if (countdown <= 0) {
         autoSelectFacility()
       } else if (countdown === 30) {
-        // Show auto-select modal when 30 seconds remain
         setShowAutoSelect(true)
       }
     }, 1000)
   }
 
   const autoSelectFacility = () => {
-    // Use the same facilities that are shown in the hospital list
     const facilitiesWithAmbulance = allFacilities.filter((f) => f.hasAmbulance)
     const acceptedAmbulanceFacilities = facilitiesWithAmbulance.filter(() => Math.random() > 0.3)
 
-    // Select the best available facility (closest with highest score)
     const bestFacility =
       acceptedAmbulanceFacilities.length > 0
         ? acceptedAmbulanceFacilities.sort((a, b) => {
-          // Prioritize by distance first, then score
           const distanceDiff = a.distance - b.distance
           if (Math.abs(distanceDiff) < 1) {
-            // If distances are similar (within 1km)
-            return b.score - a.score // Higher score wins
+            return b.score - a.score
           }
-          return distanceDiff // Closer distance wins
+          return distanceDiff
         })[0]
-        : allFacilities.sort((a, b) => a.distance - b.distance)[0] // Fallback to closest facility
+        : allFacilities.sort((a, b) => a.distance - b.distance)[0]
 
     setSelectedFacility(bestFacility)
     setStep("selected")
@@ -682,11 +656,11 @@ export default function EmergencyPage() {
   const handleEmergencySubmitted = (data: EmergencyData) => {
     setEmergencyData(data)
     setIsLoading(true)
-    console.log("[v0] Emergency submitted, user location:", userLocation)
-    console.log("[v0] Medical facilities available:", medicalFacilities.length)
+    console.log("[v0] Emergency submitted, user location:", userLocationRef.current)
+    console.log("[v0] Medical facilities available:", medicalFacilitiesRef.current.length)
 
-    // If we have location and hospitals, proceed immediately
-    if (userLocation && medicalFacilities.length > 0) {
+    // If we already have facilities, proceed immediately
+    if (userLocationRef.current && medicalFacilitiesRef.current.length > 0) {
       console.log("[v0] Location and hospitals ready, proceeding to selection")
       setStep("hospitals")
       setIsLoading(false)
@@ -694,39 +668,32 @@ export default function EmergencyPage() {
       return
     }
 
-    // If we don't have location yet, wait for it
-    if (!userLocation || isGettingLocation) {
-      console.log("[v0] Waiting for location and hospitals...")
-      const maxWait = 8000 // Wait max 8 seconds
-      const startTime = Date.now()
+    // ✅ Use refs inside the interval to avoid stale closures
+    const maxWait = 60000 // 60 seconds — allows time for progressive radius search
+    const startTime = Date.now()
 
-      const waitInterval = setInterval(() => {
-        const elapsed = Date.now() - startTime
-        console.log(`[v0] Waiting... elapsed: ${elapsed}ms, location: ${userLocation ? 'yes' : 'no'}, facilities: ${medicalFacilities.length}`)
+    const waitInterval = setInterval(() => {
+      const elapsed = Date.now() - startTime
+      const currentFacilities = medicalFacilitiesRef.current
+      const currentLocation = userLocationRef.current
 
-        if ((userLocation && medicalFacilities.length > 0) || elapsed >= maxWait) {
-          clearInterval(waitInterval)
-          console.log("[v0] Proceeding with hospitals:", medicalFacilities.length)
-          setStep("hospitals")
-          setIsLoading(false)
-          startCountdown()
-        }
-      }, 500)
+      console.log(`[v0] Waiting... elapsed: ${elapsed}ms, location: ${currentLocation ? 'yes' : 'no'}, facilities: ${currentFacilities.length}`)
 
-      return
-    }
-
-    // Default: proceed with what we have
-    setStep("hospitals")
-    setIsLoading(false)
-    startCountdown()
+      if ((currentLocation && currentFacilities.length > 0) || elapsed >= maxWait) {
+        clearInterval(waitInterval)
+        console.log("[v0] Proceeding with hospitals:", currentFacilities.length)
+        setStep("hospitals")
+        setIsLoading(false)
+        startCountdown()
+      }
+    }, 500)
   }
 
   const handleFacilitySelect = (facility: MedicalFacility) => {
     setSelectedFacility(facility)
     setStep("selected")
     if (countdownRef.current) {
-      clearTimeout(countdownRef.current)
+      clearInterval(countdownRef.current)
     }
   }
 
@@ -734,16 +701,14 @@ export default function EmergencyPage() {
     setStep("tracking")
   }
 
-  // Dummy function for onUserActivity prop (no longer used for countdown reset)
   const handleUserActivity = () => {
-    // This function is called but doesn't reset the countdown anymore
     console.log("User activity detected (countdown continues)")
   }
 
   useEffect(() => {
     return () => {
       if (countdownRef.current) {
-        clearTimeout(countdownRef.current)
+        clearInterval(countdownRef.current)
       }
     }
   }, [])
@@ -764,7 +729,6 @@ export default function EmergencyPage() {
     }
   }
 
-  // Get the best facility for auto-selection
   const getBestFacilityForAutoSelect = () => {
     const facilitiesWithAmbulance = allFacilities.filter((f) => f.hasAmbulance)
     if (facilitiesWithAmbulance.length > 0) {
@@ -957,7 +921,6 @@ export default function EmergencyPage() {
           <div className="space-y-6">
             {emergencyData && <FirstAidPanel emergencyType={emergencyData.type} severity={emergencyData.severity} />}
 
-            {/* Emergency Info Card */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-medium text-gray-600">Emergency Status</CardTitle>
@@ -1019,7 +982,7 @@ export default function EmergencyPage() {
             if (countdownRef.current) {
               clearInterval(countdownRef.current)
             }
-            startCountdown() // Restart countdown if cancelled
+            startCountdown()
           }}
           onConfirm={autoSelectFacility}
           isOpen={showAutoSelect}
@@ -1028,7 +991,7 @@ export default function EmergencyPage() {
             if (countdownRef.current) {
               clearInterval(countdownRef.current)
             }
-            startCountdown() // Restart countdown if closed
+            startCountdown()
           }}
         />
       )}
