@@ -185,10 +185,9 @@ export function HospitalSelection({
     return "AUTO-SELECTING NOW"
   }
 
-  // Filter hospitals within 5km radius
-  const hospitalsWithin5km = hospitals.filter((h) => h.distance <= 5)
-  const ambulanceHospitals = hospitalsWithin5km.filter((h) => h.hasAmbulance)
-  const selfDriveHospitals = hospitalsWithin5km
+  // Filter hospitals - show all available hospitals
+  const ambulanceHospitals = hospitals.filter((h) => h.hasAmbulance).sort((a, b) => a.distance - b.distance)
+  const selfDriveHospitals = hospitals.sort((a, b) => a.distance - b.distance)
 
   const renderHospitalCard = (hospital: MedicalFacility) => (
     <Card
@@ -321,7 +320,7 @@ export function HospitalSelection({
           <div className="flex items-center space-x-2">
             <MapPin className="h-4 w-4 text-blue-600" />
             <span className="text-sm font-medium text-blue-900">
-              Showing hospitals within 5km of incident location
+              Showing all available medical facilities sorted by distance
             </span>
           </div>
         </div>
@@ -373,10 +372,9 @@ export function HospitalSelection({
             <Card>
               <CardContent className="p-8 text-center">
                 <Ambulance className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <h3 className="text-lg font-medium mb-2">No Ambulance Services Within {currentRadius / 1000}km</h3>
+                <h3 className="text-lg font-medium mb-2">No Ambulance Services Available</h3>
                 <p className="text-gray-600">
-                  No hospitals with ambulance services were found within {currentRadius / 1000}km of the incident location. Please consider the self-drive option or
-                  contact emergency services directly.
+                  No hospitals with ambulance services were found nearby. Please consider the self-drive option or contact emergency services directly.
                 </p>
               </CardContent>
             </Card>
@@ -390,10 +388,9 @@ export function HospitalSelection({
             <Card>
               <CardContent className="p-8 text-center">
                 <MapPin className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <h3 className="text-lg font-medium mb-2">No Medical Facilities Within {currentRadius / 1000}km</h3>
+                <h3 className="text-lg font-medium mb-2">No Medical Facilities Found</h3>
                 <p className="text-gray-600">
-                  No medical facilities were found within {currentRadius / 1000}km of the incident location. Please contact
-                  emergency services directly.
+                  No medical facilities were found nearby. Please contact emergency services directly.
                 </p>
               </CardContent>
             </Card>
