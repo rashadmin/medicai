@@ -63,7 +63,6 @@ export default function EmergencyPage() {
   const { user } = useAuth()
   const isSimulation = searchParams.get("mode") === "simulation"
 
-  // Redirect to auth if not authenticated and not simulation
   useEffect(() => {
     if (!isSimulation && !user) {
       router.push("/auth/signin")
@@ -89,6 +88,10 @@ export default function EmergencyPage() {
   // ✅ Refs to avoid stale closures in intervals
   const medicalFacilitiesRef = useRef<MedicalFacility[]>([])
   const userLocationRef = useRef<LocationInfo | null>(null)
+  // ✅ Prevent duplicate concurrent fetches
+  const isFetchingRef = useRef(false)
+  // ✅ Prevent double location fetch from React strict mode
+  const locationFetchStartedRef = useRef(false)
 
   const [userLocation, setUserLocation] = useState<LocationInfo | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
@@ -108,7 +111,6 @@ export default function EmergencyPage() {
     userLocationRef.current = userLocation
   }, [userLocation])
 
-  // Request location permission immediately when component mounts
   useEffect(() => {
     requestLocationPermission()
   }, [])
@@ -148,9 +150,7 @@ export default function EmergencyPage() {
               accuracy: "precise",
             })
           },
-          (error) => {
-            reject(error)
-          },
+          (error) => reject(error),
           {
             enableHighAccuracy: highAccuracy,
             timeout: timeout,
@@ -285,15 +285,11 @@ export default function EmergencyPage() {
       for (const service of services) {
         try {
           console.log(`Trying ${service.name}...`)
-
           const controller = new AbortController()
           const timeoutId = setTimeout(() => controller.abort(), 8000)
 
           const response = await fetch(service.url, {
-            headers: {
-              Accept: "application/json",
-              "User-Agent": "MedicAI/1.0",
-            },
+            headers: { Accept: "application/json", "User-Agent": "MedicAI/1.0" },
             signal: controller.signal,
           })
 
@@ -305,8 +301,6 @@ export default function EmergencyPage() {
           }
 
           const data = await response.json()
-          console.log(`Response from ${service.name}:`, data)
-
           const location = service.parser(data)
 
           if (location && location.lat && location.lng && !isNaN(location.lat) && !isNaN(location.lng)) {
@@ -341,7 +335,6 @@ export default function EmergencyPage() {
         { name: "Houston", lat: 29.7604, lng: -95.3698, state: "TX" },
         { name: "Phoenix", lat: 33.4484, lng: -112.074, state: "AZ" },
       ]
-
       const randomCity = majorCities[Math.floor(Math.random() * majorCities.length)]
       setUserLocation({
         lat: randomCity.lat,
@@ -355,7 +348,6 @@ export default function EmergencyPage() {
       console.error("Error getting IP location:", error)
       setLocationError("Unable to determine your location. Showing medical facilities from major cities.")
       setIsGettingLocation(false)
-
       setUserLocation({
         lat: 40.7128,
         lng: -74.006,
@@ -378,9 +370,7 @@ export default function EmergencyPage() {
 
   const processFacilityData = (data: any, location: LocationInfo) => {
     return data.elements
-      .filter((element: any) => {
-        return true // filters disabled for testing
-      })
+      .filter(() => true)
       .map((element: any, index: number) => {
         const tags = element.tags || {}
         const lat = element.lat || element.center?.lat || location.lat
@@ -421,11 +411,7 @@ export default function EmergencyPage() {
         if (services.length === 0) services.push("General Medical Care")
 
         let availability: MedicalFacility["availability"] = "limited"
-        if (
-          tags.opening_hours === "24/7" ||
-          facilityType === "hospital" ||
-          facilityType === "emergency_room"
-        ) {
+        if (tags.opening_hours === "24/7" || facilityType === "hospital" || facilityType === "emergency_room") {
           availability = "24/7"
         } else if (tags.emergency === "yes") {
           availability = "emergency_only"
@@ -433,12 +419,7 @@ export default function EmergencyPage() {
 
         return {
           id: element.id?.toString() || `facility_${index}`,
-          name:
-            tags.name ||
-            tags["name:en"] ||
-            tags.operator ||
-            tags.brand ||
-            `Medical Facility ${index + 1}`,
+          name: tags.name || tags["name:en"] || tags.operator || tags.brand || `Medical Facility ${index + 1}`,
           type: facilityType,
           distance: Math.round(distance * 10) / 10,
           eta: Math.max(5, eta),
@@ -449,8 +430,7 @@ export default function EmergencyPage() {
             `${tags["addr:housenumber"] || ""} ${tags["addr:street"] || ""}`.trim() ||
             tags["addr:city"] ||
             "Address not available",
-          phone:
-            tags.phone || tags["contact:phone"] || tags.telephone || "Phone not available",
+          phone: tags.phone || tags["contact:phone"] || tags.telephone || "Phone not available",
           lat,
           lng,
           services,
@@ -462,6 +442,13 @@ export default function EmergencyPage() {
   }
 
   const fetchNearbyMedicalFacilities = async (location: LocationInfo) => {
+    // ✅ Prevent duplicate concurrent fetches
+    if (isFetchingRef.current) {
+      console.log("[v0] Fetch already in progress, skipping duplicate call")
+      return
+    }
+    isFetchingRef.current = true
+
     setIsFetchingHospitals(true)
     setHospitalsError(null)
 
@@ -484,9 +471,7 @@ export default function EmergencyPage() {
         try {
           const response = await fetch("/api/hospitals", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ lat: location.lat, lng: location.lng, radius }),
           })
 
@@ -504,7 +489,10 @@ export default function EmergencyPage() {
 
             if (facilityData.length >= 3) {
               console.log(`[v0] Found ${facilityData.length} facilities within ${radiusKm}km - sufficient results`)
+
+              // ✅ Update ref immediately so waitInterval sees value without waiting for re-render
               medicalFacilitiesRef.current = facilityData
+
               setAllFacilities(facilityData)
               setMedicalFacilities(facilityData)
               setHospitalsError(null)
@@ -515,9 +503,12 @@ export default function EmergencyPage() {
                 radiusIndex++
                 console.log(`[v0] Only ${facilityData.length} facilities at ${radiusKm}km, expanding to ${radiusSteps[radiusIndex] / 1000}km...`)
               } else {
-                // Max radius reached, use what we have
+                // Max radius — use what we have
                 console.log(`[v0] Max radius reached with ${facilityData.length} facilities`)
+
+                // ✅ Update ref immediately
                 medicalFacilitiesRef.current = facilityData
+
                 setAllFacilities(facilityData)
                 setMedicalFacilities(facilityData)
                 setHospitalsError(null)
@@ -557,12 +548,10 @@ export default function EmergencyPage() {
           } else {
             let errorMsg = "Unable to fetch hospital data"
             if (fetchError.name === "AbortError") {
-              console.log("[v0] Overpass API request was aborted due to timeout")
               errorMsg = "Hospital search took too long to respond. Please try again."
             } else {
               console.warn("[v0] Hospital API fetch failed:", fetchError.message)
             }
-
             setHospitalsError(errorMsg)
             setAllFacilities([])
             setMedicalFacilities([])
@@ -577,6 +566,9 @@ export default function EmergencyPage() {
       setAllFacilities([])
       setMedicalFacilities([])
       setIsFetchingHospitals(false)
+    } finally {
+      // ✅ Always release the lock when done
+      isFetchingRef.current = false
     }
   }
 
@@ -594,12 +586,16 @@ export default function EmergencyPage() {
   const retryFetchHospitals = async () => {
     if (userLocation) {
       console.log("[v0] Retrying hospital fetch...")
+      // ✅ Reset lock so retry can proceed
+      isFetchingRef.current = false
       await fetchNearbyMedicalFacilities(userLocation)
     }
   }
 
+  // ✅ Guard against double-trigger from React strict mode double-invoking effects
   useEffect(() => {
-    if (userLocation) {
+    if (userLocation && !locationFetchStartedRef.current) {
+      locationFetchStartedRef.current = true
       console.log("[v0] ===== LOCATION ACQUIRED =====")
       console.log("[v0] Location:", userLocation)
       console.log("[v0] Accuracy:", userLocation.accuracy)
@@ -611,9 +607,7 @@ export default function EmergencyPage() {
   }, [userLocation])
 
   const startCountdown = () => {
-    if (countdownRef.current) {
-      return
-    }
+    if (countdownRef.current) return
 
     countdownStartTimeRef.current = Date.now()
     setCountdownStarted(true)
@@ -640,9 +634,7 @@ export default function EmergencyPage() {
       acceptedAmbulanceFacilities.length > 0
         ? acceptedAmbulanceFacilities.sort((a, b) => {
           const distanceDiff = a.distance - b.distance
-          if (Math.abs(distanceDiff) < 1) {
-            return b.score - a.score
-          }
+          if (Math.abs(distanceDiff) < 1) return b.score - a.score
           return distanceDiff
         })[0]
         : allFacilities.sort((a, b) => a.distance - b.distance)[0]
@@ -650,9 +642,7 @@ export default function EmergencyPage() {
     setSelectedFacility(bestFacility)
     setStep("selected")
     setShowAutoSelect(false)
-    if (countdownRef.current) {
-      clearInterval(countdownRef.current)
-    }
+    if (countdownRef.current) clearInterval(countdownRef.current)
   }
 
   const handleEmergencySubmitted = (data: EmergencyData) => {
@@ -661,7 +651,7 @@ export default function EmergencyPage() {
     console.log("[v0] Emergency submitted, user location:", userLocationRef.current)
     console.log("[v0] Medical facilities available:", medicalFacilitiesRef.current.length)
 
-    // If we already have facilities, proceed immediately
+    // ✅ Read from refs (always current) not state (may be stale)
     if (userLocationRef.current && medicalFacilitiesRef.current.length > 0) {
       console.log("[v0] Location and hospitals ready, proceeding to selection")
       setStep("hospitals")
@@ -670,8 +660,8 @@ export default function EmergencyPage() {
       return
     }
 
-    // ✅ Use refs inside the interval to avoid stale closures
-    const maxWait = 60000 // 60 seconds — allows time for progressive radius search
+    // ✅ Use refs inside the interval — avoids stale closure bug entirely
+    const maxWait = 60000
     const startTime = Date.now()
 
     const waitInterval = setInterval(() => {
@@ -679,7 +669,7 @@ export default function EmergencyPage() {
       const currentFacilities = medicalFacilitiesRef.current
       const currentLocation = userLocationRef.current
 
-      console.log(`[v0] Waiting... elapsed: ${elapsed}ms, location: ${currentLocation ? 'yes' : 'no'}, facilities: ${currentFacilities.length}`)
+      console.log(`[v0] Waiting... elapsed: ${elapsed}ms, location: ${currentLocation ? "yes" : "no"}, facilities: ${currentFacilities.length}`)
 
       if ((currentLocation && currentFacilities.length > 0) || elapsed >= maxWait) {
         clearInterval(waitInterval)
@@ -694,14 +684,10 @@ export default function EmergencyPage() {
   const handleFacilitySelect = (facility: MedicalFacility) => {
     setSelectedFacility(facility)
     setStep("selected")
-    if (countdownRef.current) {
-      clearInterval(countdownRef.current)
-    }
+    if (countdownRef.current) clearInterval(countdownRef.current)
   }
 
-  const handleStartTracking = () => {
-    setStep("tracking")
-  }
+  const handleStartTracking = () => setStep("tracking")
 
   const handleUserActivity = () => {
     console.log("User activity detected (countdown continues)")
@@ -709,26 +695,17 @@ export default function EmergencyPage() {
 
   useEffect(() => {
     return () => {
-      if (countdownRef.current) {
-        clearInterval(countdownRef.current)
-      }
+      if (countdownRef.current) clearInterval(countdownRef.current)
     }
   }, [])
 
   const getLocationDisplayText = () => {
     if (!userLocation) return "Unknown location"
-
-    if (userLocation.accuracy === "precise") {
-      return "Your precise location"
-    } else if (userLocation.city && userLocation.state) {
-      return `${userLocation.city}, ${userLocation.state}`
-    } else if (userLocation.city) {
-      return userLocation.city
-    } else if (userLocation.country) {
-      return userLocation.country
-    } else {
-      return "Approximate location"
-    }
+    if (userLocation.accuracy === "precise") return "Your precise location"
+    if (userLocation.city && userLocation.state) return `${userLocation.city}, ${userLocation.state}`
+    if (userLocation.city) return userLocation.city
+    if (userLocation.country) return userLocation.country
+    return "Approximate location"
   }
 
   const getBestFacilityForAutoSelect = () => {
@@ -749,9 +726,7 @@ export default function EmergencyPage() {
               <Heart className="h-6 w-6 text-red-500" />
               <h1 className="text-xl font-bold text-gray-900 hover:text-red-600 transition-colors">Medic AI</h1>
               {isSimulation && (
-                <Badge variant="secondary" className="ml-2">
-                  SIMULATION MODE
-                </Badge>
+                <Badge variant="secondary" className="ml-2">SIMULATION MODE</Badge>
               )}
             </div>
             <div className="flex items-center space-x-2">
@@ -981,18 +956,16 @@ export default function EmergencyPage() {
           selectedFacility={getBestFacilityForAutoSelect()}
           onCancel={() => {
             setShowAutoSelect(false)
-            if (countdownRef.current) {
-              clearInterval(countdownRef.current)
-            }
+            if (countdownRef.current) clearInterval(countdownRef.current)
+            countdownRef.current = undefined
             startCountdown()
           }}
           onConfirm={autoSelectFacility}
           isOpen={showAutoSelect}
           onClose={() => {
             setShowAutoSelect(false)
-            if (countdownRef.current) {
-              clearInterval(countdownRef.current)
-            }
+            if (countdownRef.current) clearInterval(countdownRef.current)
+            countdownRef.current = undefined
             startCountdown()
           }}
         />
