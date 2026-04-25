@@ -470,7 +470,7 @@ export default function EmergencyPage() {
   const fetchNearbyMedicalFacilities = async (location: LocationInfo) => {
     setIsFetchingHospitals(true)
     setHospitalsError(null)
-
+    location = { ...location, lat: 7.1784, lng: 4.6976 }
     const radiusSteps = [5000, 10000, 15000, 20000, 30000, 40000, 50000] // 5km, 10km, 15km, 20km, 30km, 40km, 50km in meters
     let radiusIndex = 0
     let foundResults = false
