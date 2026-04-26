@@ -40,7 +40,7 @@ export default function HospitalDashboard() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 cursor-pointer" onClick={() => router.push("/")}>
-              <Heart className="h-6 w-6 text-red-500" />
+              <Heart className="h-6 w-6 text-red-600 fill-red-600 animate-heartbeat" />
               <h1 className="text-xl font-bold text-gray-900 hover:text-red-600 transition-colors">
                 Medic AI - Hospital
               </h1>
