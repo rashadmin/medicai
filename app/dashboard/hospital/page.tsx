@@ -1,22 +1,33 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Heart, Building2, Activity, Users, Ambulance, LogOut, Settings, AlertTriangle } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import AIChatbot from "@/components/ai-chatbot"
 
 export default function HospitalDashboard() {
   const router = useRouter()
   const { user, signOut } = useAuth()
+  const [profileLoaded, setProfileLoaded] = useState(false)
 
   useEffect(() => {
     if (!user || user.role !== "hospital") {
       router.push("/auth/signin?role=hospital")
     }
   }, [user, router])
+
+  useEffect(() => {
+    // Simulate profile loading with delay
+    const timer = setTimeout(() => {
+      setProfileLoaded(true)
+    }, 2000)
+
+    return () => clearTimeout(timer)
+  }, [])
 
   if (!user) return null
 
@@ -53,76 +64,98 @@ export default function HospitalDashboard() {
 
       <div className="container mx-auto px-4 py-8">
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Hospital Profile */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Building2 className="h-5 w-5 text-green-600" />
-                  <span>Hospital Profile</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {profile && (
-                  <div>
-                    <h3 className="font-semibold text-lg">{profile.hospitalName}</h3>
-                    <p className="text-gray-600">{user.email}</p>
-                    <p className="text-gray-600">{profile.address}</p>
-                  </div>
-                )}
-
-                {profile && (
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Contact:</span>
-                      <span className="font-medium">{profile.contactNumber}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Type:</span>
-                      <span className="font-medium">{profile.hospitalType}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Ambulance:</span>
-                      <Badge variant={profile.hasAmbulance ? "default" : "secondary"}>
-                        {profile.hasAmbulance ? "Available" : "Not Available"}
-                      </Badge>
-                    </div>
-                  </div>
-                )}
-
-                <Button className="w-full bg-transparent" variant="outline">
-                  Edit Profile
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Quick Stats */}
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Activity className="h-5 w-5 text-blue-600" />
-                  <span>Quick Stats</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="text-center p-3 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">0</div>
-                  <div className="text-sm text-blue-600">Active Requests</div>
-                </div>
-                <div className="text-center p-3 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">24</div>
-                  <div className="text-sm text-green-600">Staff on Duty</div>
-                </div>
-                <div className="text-center p-3 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">12</div>
-                  <div className="text-sm text-purple-600">Available Beds</div>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Chat Interface - Visible Immediately */}
+          <div className="lg:col-span-2 row-start-1 lg:row-start-auto">
+            <AIChatbot onEmergencyDetected={() => router.push("/emergency")} className="h-[600px]" />
           </div>
 
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+          {/* Hospital Profile & Stats - Loads in Background */}
+          <div className="lg:col-span-1 row-start-2 lg:row-start-auto">
+            {profileLoaded ? (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Building2 className="h-5 w-5 text-green-600" />
+                      <span>Hospital Profile</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {profile && (
+                      <div>
+                        <h3 className="font-semibold text-lg">{profile.hospitalName}</h3>
+                        <p className="text-gray-600">{user.email}</p>
+                        <p className="text-gray-600">{profile.address}</p>
+                      </div>
+                    )}
+
+                    {profile && (
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Contact:</span>
+                          <span className="font-medium">{profile.contactNumber}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Type:</span>
+                          <span className="font-medium">{profile.hospitalType}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Ambulance:</span>
+                          <Badge variant={profile.hasAmbulance ? "default" : "secondary"}>
+                            {profile.hasAmbulance ? "Available" : "Not Available"}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button className="w-full bg-transparent" variant="outline">
+                      Edit Profile
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Quick Stats */}
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Activity className="h-5 w-5 text-blue-600" />
+                      <span>Quick Stats</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="text-center p-3 bg-blue-50 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">0</div>
+                      <div className="text-sm text-blue-600">Active Requests</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">24</div>
+                      <div className="text-sm text-green-600">Staff on Duty</div>
+                    </div>
+                    <div className="text-center p-3 bg-purple-50 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600">12</div>
+                      <div className="text-sm text-purple-600">Available Beds</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Loading Hospital Data...</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-5/6"></div>
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-4/6"></div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Main Content - Appears After Chat */}
+          <div className="lg:col-span-2 row-start-3 lg:row-start-auto space-y-6">
             {/* Emergency Dashboard */}
             <Card>
               <CardHeader>
