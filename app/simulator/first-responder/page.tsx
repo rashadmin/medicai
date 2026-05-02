@@ -7,8 +7,48 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Heart, ArrowLeft, Send, MapPin, Phone } from "lucide-react"
+import { Heart, ArrowLeft, Send, MapPin, Phone, Shuffle } from "lucide-react"
 import AIChatbot from "@/components/ai-chatbot"
+
+const RANDOM_NAMES = [
+  "John Smith", "Sarah Johnson", "Michael Brown", "Emily Davis", "James Wilson",
+  "Jennifer Garcia", "David Martinez", "Lisa Anderson", "Robert Taylor", "Maria Thomas"
+]
+
+const RANDOM_SYMPTOMS = [
+  "Chest pain, difficulty breathing, shortness of breath",
+  "Severe abdominal pain, nausea, vomiting",
+  "Sudden weakness on left side, slurred speech, facial drooping",
+  "Severe allergic reaction, difficulty breathing, swelling",
+  "Profuse bleeding from head wound, loss of consciousness",
+  "Severe headache, stiff neck, fever, confusion",
+  "Burns on arms and hands, blistering, severe pain",
+  "Difficulty swallowing, choking sensation, unable to breathe"
+]
+
+const RANDOM_MEDICAL_HISTORY = [
+  "Diabetes, Hypertension, High Cholesterol",
+  "Asthma, Allergies to Penicillin",
+  "Previous heart attack, Atrial fibrillation",
+  "Epilepsy, Previous seizure disorder",
+  "Severe peanut allergy, Nut allergy",
+  "None known",
+  "Thyroid disease, Depression",
+  "Arthritis, Osteoporosis"
+]
+
+const BLOOD_GROUPS = ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"]
+
+function generateRandomData() {
+  return {
+    patientName: RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)],
+    age: String(Math.floor(Math.random() * (85 - 18 + 1)) + 18),
+    bloodGroup: BLOOD_GROUPS[Math.floor(Math.random() * BLOOD_GROUPS.length)],
+    medicalHistory: RANDOM_MEDICAL_HISTORY[Math.floor(Math.random() * RANDOM_MEDICAL_HISTORY.length)],
+    currentSymptoms: RANDOM_SYMPTOMS[Math.floor(Math.random() * RANDOM_SYMPTOMS.length)],
+    contactNumber: String(Math.floor(Math.random() * 9000000000) + 1000000000).replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3"),
+  }
+}
 
 export default function FirstResponderSimulator() {
   const router = useRouter()
@@ -82,6 +122,14 @@ export default function FirstResponderSimulator() {
       contactNumber: "",
     })
     setSubmitted(false)
+  }
+
+  const handleFillRandom = () => {
+    const randomData = generateRandomData()
+    setFormData((prev) => ({
+      ...prev,
+      ...randomData,
+    }))
   }
 
   return (
@@ -218,10 +266,16 @@ export default function FirstResponderSimulator() {
                       />
                     </div>
 
-                    <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                      <Send className="h-4 w-4 mr-2" />
-                      Submit Emergency Report
-                    </Button>
+                    <div className="space-y-2">
+                      <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                        <Send className="h-4 w-4 mr-2" />
+                        Submit Emergency Report
+                      </Button>
+                      <Button type="button" onClick={handleFillRandom} variant="outline" className="w-full border-gray-300 text-gray-700 hover:bg-gray-50">
+                        <Shuffle className="h-4 w-4 mr-2" />
+                        Fill Random Data
+                      </Button>
+                    </div>
                   </form>
                 </CardContent>
               </Card>
