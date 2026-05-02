@@ -18,10 +18,44 @@ export default function FirstResponderSimulator() {
     bloodGroup: "O+",
     medicalHistory: "",
     currentSymptoms: "",
-    location: "",
+    latitude: 0,
+    longitude: 0,
     contactNumber: "",
   })
   const [submitted, setSubmitted] = useState(false)
+  const [locationLoading, setLocationLoading] = useState(true)
+  const [locationError, setLocationError] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Request GPS location on component mount
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords
+          setFormData((prev) => ({
+            ...prev,
+            latitude,
+            longitude,
+          }))
+          setLocationLoading(false)
+        },
+        (error) => {
+          console.log("[v0] GPS error:", error.message)
+          setLocationError("Unable to access GPS. Using default location.")
+          // Use default location if GPS fails
+          setFormData((prev) => ({
+            ...prev,
+            latitude: 40.7128,
+            longitude: -74.006,
+          }))
+          setLocationLoading(false)
+        }
+      )
+    } else {
+      setLocationError("Geolocation not supported. Using default location.")
+      setLocationLoading(false)
+    }
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -43,7 +77,8 @@ export default function FirstResponderSimulator() {
       bloodGroup: "O+",
       medicalHistory: "",
       currentSymptoms: "",
-      location: "",
+      latitude: formData.latitude,
+      longitude: formData.longitude,
       contactNumber: "",
     })
     setSubmitted(false)
@@ -149,15 +184,26 @@ export default function FirstResponderSimulator() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                      <Input
-                        type="text"
-                        name="location"
-                        value={formData.location}
-                        onChange={handleChange}
-                        placeholder="Current location/address"
-                        required
-                      />
+                      <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        GPS Location
+                      </label>
+                      {locationLoading ? (
+                        <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 animate-pulse">
+                          Detecting location...
+                        </div>
+                      ) : locationError ? (
+                        <div className="px-3 py-2 border border-yellow-300 rounded-md bg-yellow-50 text-yellow-700 text-sm">
+                          {locationError}
+                        </div>
+                      ) : (
+                        <div className="px-3 py-2 border border-green-300 rounded-md bg-green-50">
+                          <p className="text-sm font-semibold text-green-800">Location Detected</p>
+                          <p className="text-xs text-green-700">
+                            Latitude: {formData.latitude.toFixed(4)}°, Longitude: {formData.longitude.toFixed(4)}°
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -219,10 +265,12 @@ export default function FirstResponderSimulator() {
                     </div>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Location</p>
+                    <p className="text-sm text-gray-600">Location (GPS)</p>
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-gray-500" />
-                      <p className="text-lg font-semibold">{formData.location}</p>
+                      <p className="text-lg font-semibold">
+                        {formData.latitude.toFixed(4)}°, {formData.longitude.toFixed(4)}°
+                      </p>
                     </div>
                   </div>
                   <div>
