@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Heart, ArrowLeft, Send, MapPin, Phone, Shuffle } from "lucide-react"
-import AIChatbot from "@/components/ai-chatbot"
+import { Heart, ArrowLeft, Shuffle, MapPin } from "lucide-react"
+import FloatingChatWidget from "@/components/floating-chat-widget"
+import HospitalList from "@/components/hospital-list"
+import HospitalDirectionsMap from "@/components/hospital-directions-map"
+import { generateNearbyHospitals, Hospital } from "@/lib/simulator-utils"
 
 const RANDOM_NAMES = [
   "John Smith", "Sarah Johnson", "Michael Brown", "Emily Davis", "James Wilson",
@@ -62,9 +65,12 @@ export default function FirstResponderSimulator() {
     longitude: 0,
     contactNumber: "",
   })
-  const [submitted, setSubmitted] = useState(false)
   const [locationLoading, setLocationLoading] = useState(true)
   const [locationError, setLocationError] = useState<string | null>(null)
+  const [submitted, setSubmitted] = useState(false)
+  const [hospitals, setHospitals] = useState<Hospital[]>([])
+  const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null)
+  const [showChat, setShowChat] = useState(false)
 
   useEffect(() => {
     // Request GPS location on component mount
@@ -82,7 +88,6 @@ export default function FirstResponderSimulator() {
         (error) => {
           console.log("[v0] GPS error:", error.message)
           setLocationError("Unable to access GPS. Using default location.")
-          // Use default location if GPS fails
           setFormData((prev) => ({
             ...prev,
             latitude: 40.7128,
@@ -108,6 +113,10 @@ export default function FirstResponderSimulator() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitted(true)
+    setShowChat(true)
+    // Generate nearby hospitals when form is submitted
+    const nearbyHospitals = generateNearbyHospitals(formData.latitude, formData.longitude)
+    setHospitals(nearbyHospitals)
   }
 
   const handleReset = () => {
@@ -122,6 +131,8 @@ export default function FirstResponderSimulator() {
       contactNumber: "",
     })
     setSubmitted(false)
+    setSelectedHospital(null)
+    setShowChat(false)
   }
 
   const handleFillRandom = () => {
@@ -132,10 +143,18 @@ export default function FirstResponderSimulator() {
     }))
   }
 
+  const handleSelectHospital = (hospital: Hospital) => {
+    setSelectedHospital(hospital)
+  }
+
+  const handleBackToHospitals = () => {
+    setSelectedHospital(null)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-50">
+      <header className="bg-white shadow-sm border-b sticky top-0 z-40">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <button
@@ -156,27 +175,27 @@ export default function FirstResponderSimulator() {
 
       <div className="container mx-auto px-4 py-8">
         {!submitted ? (
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Form Section */}
-            <div className="lg:col-span-1">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Patient Information</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Patient Name</label>
-                      <Input
-                        type="text"
-                        name="patientName"
-                        value={formData.patientName}
-                        onChange={handleChange}
-                        placeholder="Enter patient name"
-                        required
-                      />
-                    </div>
+          // Form Section
+          <div className="max-w-2xl mx-auto">
+            <Card>
+              <CardHeader>
+                <CardTitle>Emergency Patient Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Patient Name</label>
+                    <Input
+                      type="text"
+                      name="patientName"
+                      value={formData.patientName}
+                      onChange={handleChange}
+                      placeholder="Enter patient name"
+                      required
+                    />
+                  </div>
 
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
                       <Input
@@ -184,11 +203,10 @@ export default function FirstResponderSimulator() {
                         name="age"
                         value={formData.age}
                         onChange={handleChange}
-                        placeholder="Enter age"
+                        placeholder="Age"
                         required
                       />
                     </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group</label>
                       <select
@@ -197,170 +215,173 @@ export default function FirstResponderSimulator() {
                         onChange={handleChange}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="O+">O+</option>
-                        <option value="O-">O-</option>
-                        <option value="A+">A+</option>
-                        <option value="A-">A-</option>
-                        <option value="B+">B+</option>
-                        <option value="B-">B-</option>
-                        <option value="AB+">AB+</option>
-                        <option value="AB-">AB-</option>
+                        {BLOOD_GROUPS.map((group) => (
+                          <option key={group} value={group}>{group}</option>
+                        ))}
                       </select>
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Medical History</label>
-                      <Textarea
-                        name="medicalHistory"
-                        value={formData.medicalHistory}
-                        onChange={handleChange}
-                        placeholder="e.g., Diabetes, Hypertension, Allergies"
-                        rows={3}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Current Symptoms</label>
-                      <Textarea
-                        name="currentSymptoms"
-                        value={formData.currentSymptoms}
-                        onChange={handleChange}
-                        placeholder="Describe symptoms in detail"
-                        rows={3}
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                        <MapPin className="h-4 w-4" />
-                        GPS Location
-                      </label>
-                      {locationLoading ? (
-                        <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 animate-pulse">
-                          Detecting location...
-                        </div>
-                      ) : locationError ? (
-                        <div className="px-3 py-2 border border-yellow-300 rounded-md bg-yellow-50 text-yellow-700 text-sm">
-                          {locationError}
-                        </div>
-                      ) : (
-                        <div className="px-3 py-2 border border-green-300 rounded-md bg-green-50">
-                          <p className="text-sm font-semibold text-green-800">Location Detected</p>
-                          <p className="text-xs text-green-700">
-                            Latitude: {formData.latitude.toFixed(4)}°, Longitude: {formData.longitude.toFixed(4)}°
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
-                      <Input
-                        type="tel"
-                        name="contactNumber"
-                        value={formData.contactNumber}
-                        onChange={handleChange}
-                        placeholder="Phone number"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                        <Send className="h-4 w-4 mr-2" />
-                        Submit Emergency Report
-                      </Button>
-                      <Button type="button" onClick={handleFillRandom} variant="outline" className="w-full border-gray-300 text-gray-700 hover:bg-gray-50">
-                        <Shuffle className="h-4 w-4 mr-2" />
-                        Fill Random Data
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* AI Chat Section */}
-            <div className="lg:col-span-2">
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Heart className="h-5 w-5 text-red-600 fill-red-600" />
-                    AI Medical Assistant
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <AIChatbot className="h-[600px]" onEmergencyDetected={() => {}} />
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        ) : (
-          <div className="max-w-2xl mx-auto">
-            <Card className="border-green-200 bg-green-50">
-              <CardHeader>
-                <CardTitle className="text-green-700">Report Submitted Successfully</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="bg-white p-6 rounded-lg space-y-4">
                   <div>
-                    <p className="text-sm text-gray-600">Patient Name</p>
-                    <p className="text-lg font-semibold">{formData.patientName}</p>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Medical History</label>
+                    <Textarea
+                      name="medicalHistory"
+                      value={formData.medicalHistory}
+                      onChange={handleChange}
+                      placeholder="e.g., Diabetes, Hypertension, Allergies"
+                      rows={2}
+                    />
                   </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-600">Age</p>
-                      <p className="text-lg font-semibold">{formData.age} years</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Blood Group</p>
-                      <p className="text-lg font-semibold">{formData.bloodGroup}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Location (GPS)</p>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-gray-500" />
-                      <p className="text-lg font-semibold">
-                        {formData.latitude.toFixed(4)}°, {formData.longitude.toFixed(4)}°
-                      </p>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Contact</p>
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-gray-500" />
-                      <p className="text-lg font-semibold">{formData.contactNumber}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-2">Current Symptoms</p>
-                    <p className="bg-gray-50 p-3 rounded text-gray-800">{formData.currentSymptoms}</p>
-                  </div>
-                  {formData.medicalHistory && (
-                    <div>
-                      <p className="text-sm text-gray-600 mb-2">Medical History</p>
-                      <p className="bg-gray-50 p-3 rounded text-gray-800">{formData.medicalHistory}</p>
-                    </div>
-                  )}
-                </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-blue-800">
-                    <strong>Status:</strong> Your emergency report has been submitted to nearby hospitals. They will
-                    review your case and coordinate immediate response. Stay on the line if contact is needed.
-                  </p>
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Medical Emergency Description</label>
+                    <Textarea
+                      name="currentSymptoms"
+                      value={formData.currentSymptoms}
+                      onChange={handleChange}
+                      placeholder="Describe the medical emergency in detail"
+                      rows={4}
+                      required
+                    />
+                  </div>
 
-                <Button onClick={handleReset} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                  Submit Another Report
-                </Button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      GPS Location
+                    </label>
+                    {locationLoading ? (
+                      <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 animate-pulse">
+                        Detecting location...
+                      </div>
+                    ) : locationError ? (
+                      <div className="px-3 py-2 border border-yellow-300 rounded-md bg-yellow-50 text-yellow-700 text-sm">
+                        {locationError}
+                      </div>
+                    ) : (
+                      <div className="px-3 py-2 border border-green-300 rounded-md bg-green-50">
+                        <p className="text-sm font-semibold text-green-800">Location Detected</p>
+                        <p className="text-xs text-green-700">
+                          Latitude: {formData.latitude.toFixed(4)}°, Longitude: {formData.longitude.toFixed(4)}°
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
+                    <Input
+                      type="tel"
+                      name="contactNumber"
+                      value={formData.contactNumber}
+                      onChange={handleChange}
+                      placeholder="Phone number"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2 pt-4">
+                    <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 text-lg">
+                      Submit Emergency Report
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleFillRandom}
+                      variant="outline"
+                      className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
+                    >
+                      <Shuffle className="h-4 w-4 mr-2" />
+                      Fill Random Data
+                    </Button>
+                  </div>
+                </form>
               </CardContent>
             </Card>
           </div>
+        ) : (
+          // Chat + Hospital List View
+          <div className="grid lg:grid-cols-4 gap-6 h-[calc(100vh-200px)]">
+            {/* Hospital List / Map Section */}
+            <div className="lg:col-span-1 bg-white rounded-lg border p-4 overflow-hidden flex flex-col">
+              {selectedHospital ? (
+                <HospitalDirectionsMap
+                  hospital={selectedHospital}
+                  userLatitude={formData.latitude}
+                  userLongitude={formData.longitude}
+                  onBack={handleBackToHospitals}
+                />
+              ) : (
+                <HospitalList
+                  hospitals={hospitals}
+                  onSelectHospital={handleSelectHospital}
+                  loading={hospitals.length === 0}
+                />
+              )}
+            </div>
+
+            {/* Main Content */}
+            <div className="lg:col-span-3 space-y-4">
+              {/* Case Summary */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Emergency Case Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <p className="text-xs text-gray-600">Patient Name</p>
+                      <p className="font-semibold text-sm text-gray-900">{formData.patientName}</p>
+                    </div>
+                    <div className="p-3 bg-green-50 rounded-lg">
+                      <p className="text-xs text-gray-600">Age</p>
+                      <p className="font-semibold text-sm text-gray-900">{formData.age} yrs</p>
+                    </div>
+                    <div className="p-3 bg-red-50 rounded-lg">
+                      <p className="text-xs text-gray-600">Blood Group</p>
+                      <p className="font-semibold text-sm text-gray-900">{formData.bloodGroup}</p>
+                    </div>
+                    <div className="p-3 bg-purple-50 rounded-lg">
+                      <p className="text-xs text-gray-600">Contact</p>
+                      <p className="font-semibold text-sm text-gray-900">{formData.contactNumber}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Emergency Description */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Medical Emergency</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-700 text-sm">{formData.currentSymptoms}</p>
+                  {formData.medicalHistory && (
+                    <div className="mt-4 pt-4 border-t">
+                      <p className="text-xs text-gray-600 mb-2">Medical History</p>
+                      <p className="text-gray-700 text-sm">{formData.medicalHistory}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Action Buttons */}
+              <div className="space-y-2">
+                <Button onClick={handleReset} className="w-full bg-orange-600 hover:bg-orange-700 text-white">
+                  Submit Another Report
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
+
+      {/* Floating Chat Widget - Only show after submission */}
+      {submitted && showChat && (
+        <FloatingChatWidget
+          initialMessage={formData.currentSymptoms}
+          onClose={() => setShowChat(false)}
+        />
+      )}
     </div>
   )
 }

@@ -11,6 +11,88 @@ export interface EmergencyCase {
   location: string
 }
 
+export interface Hospital {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+  address: string
+  phone: string
+  distance: number // in km
+  accepted: boolean
+  specialty: string[]
+  beds: number
+}
+
+// Generate nearby hospitals based on GPS coordinates
+export function generateNearbyHospitals(userLatitude: number, userLongitude: number): Hospital[] {
+  const hospitals: Hospital[] = [
+    {
+      id: "H001",
+      name: "City General Hospital",
+      latitude: userLatitude + 0.015,
+      longitude: userLongitude + 0.01,
+      address: "123 Medical Center Drive",
+      phone: "(555) 123-4567",
+      distance: 2.1,
+      accepted: Math.random() > 0.3,
+      specialty: ["Cardiology", "Trauma", "Emergency"],
+      beds: 450,
+    },
+    {
+      id: "H002",
+      name: "St. Mary's Medical Center",
+      latitude: userLatitude - 0.012,
+      longitude: userLongitude + 0.018,
+      address: "456 Hospital Avenue",
+      phone: "(555) 234-5678",
+      distance: 2.8,
+      accepted: Math.random() > 0.4,
+      specialty: ["Neurology", "Orthopedics", "Emergency"],
+      beds: 320,
+    },
+    {
+      id: "H003",
+      name: "Emergency Care Hospital",
+      latitude: userLatitude + 0.008,
+      longitude: userLongitude - 0.015,
+      address: "789 Emergency Lane",
+      phone: "(555) 345-6789",
+      distance: 1.5,
+      accepted: Math.random() > 0.25,
+      specialty: ["Emergency", "Trauma Surgery", "ICU"],
+      beds: 280,
+    },
+    {
+      id: "H004",
+      name: "Advanced Medical Center",
+      latitude: userLatitude - 0.02,
+      longitude: userLongitude - 0.01,
+      address: "321 Healthcare Road",
+      phone: "(555) 456-7890",
+      distance: 3.2,
+      accepted: Math.random() > 0.35,
+      specialty: ["Cardiology", "Pulmonology", "Emergency"],
+      beds: 380,
+    },
+    {
+      id: "H005",
+      name: "Riverside Hospital",
+      latitude: userLatitude + 0.025,
+      longitude: userLongitude - 0.008,
+      address: "654 Riverside Plaza",
+      phone: "(555) 567-8901",
+      distance: 3.8,
+      accepted: Math.random() > 0.45,
+      specialty: ["Orthopedics", "Emergency", "Pediatrics"],
+      beds: 250,
+    },
+  ]
+
+  // Sort by distance
+  return hospitals.sort((a, b) => a.distance - b.distance)
+}
+
 const mockCaseTemplates = [
   {
     patientName: "John Smith",
